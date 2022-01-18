@@ -1,0 +1,4 @@
+include LICENSE
+include README.md
+recursive-include src/pybats_detection/data/ *
+recursive-exclude src/pybats_detection/__pycache__ *

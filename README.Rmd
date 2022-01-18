@@ -1,0 +1,162 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+options(digits = 4, prompt = "$ ", continue = "$ ", width = 70,
+        useFancyQuotes = FALSE)
+library(reticulate)
+use_virtualenv(virtualenv = "pybats_detection", required = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      dev = "svg", fig.align = "center", fig.width = 10,
+                      fig.height = 6, prompt = TRUE, tidy = TRUE,
+                      fig.path = "examples/figures/README-")
+```
+
+## `pybats-detection`
+
+> The `pybats-detection` is a `python` package with routines for detection of outlier and structural changes in time series using Bayesian Dynamic Linear Models.
+> The currently version of the package implements the automatic monitoring, manual intervention and smoothing.
+
+## Installation
+
+The development version can be installed from [GitHub](https://github.com/) using:
+
+```{bash, eval = FALSE}
+git clone git@github.com:[USER]/[REPO].git [REPO]
+cd [REPO]
+sudo python setup.py install
+```
+
+## Quick overview
+
+The package uses the `pybats.dglm.dlm` objects from [`pybats`](https://github.com/lavinei/pybats) as input of the following classes:
+
+- `AutomaticMonitoring`: perform automatic monitoring of outlier and/or structural changes in time series according to [West and Harisson (1986)](https://www.tandfonline.com/doi/abs/10.1080/01621459.1986.10478331) .
+
+- `ManualIntervention`: perform manual intervention of outlier and/or structural changes in time series according to [West and Harrison (1989)](https://onlinelibrary.wiley.com/doi/abs/10.1002/for.3980080104).
+
+- `Smoothing`: compute the retrospective state space and predictive distributions.
+
+All three classes have the `fit` method which received the univariate time series
+as a `pandas.Series` object and further arguments related to each class.
+
+### Example of Monitoring
+
+```{r, include=FALSE}
+options(prompt = ">>> ", continue = ">>> ")
+```
+
+```{python monitor}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pybats.dglm import dlm
+from matplotlib.pyplot import figure
+from pybats_detection.loader import load_cp6
+from pybats_detection.monitor import AutomaticMonitoring
+from pybats_detection.loader import load_telephone_calls
+from pybats_detection.intervention import ManualIntervention
+
+# Load data
+telephone_calls = load_telephone_calls()
+
+# Defining the model
+a = np.array([350, 0])
+R = np.eye(2)
+np.fill_diagonal(R, val=[100])
+mod = dlm(a, R, ntrend=2, deltrend=0.95)
+
+# Fitting with the automatic monitoring
+monitor = AutomaticMonitoring(mod=mod, bilateral=True, prior_length=20)
+fit_monitor = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
+                          tau=0.135, change_var=[10, 2])
+dict_filter = fit_monitor.get("filter")
+dict_filter.keys()
+data_predictive = dict_filter.get("predictive")
+data_predictive.head()
+```
+
+
+```{python plot-monitor}
+figure(figsize=(12, 8))
+plt.plot(telephone_calls["time"], telephone_calls["average_daily_calls"], "o",
+         markersize=4, color="black", fillstyle="none")
+# plt.plot(df_fit["f"], color="red")
+plt.plot(telephone_calls["time"], data_predictive["f"], color="blue")
+plt.plot(telephone_calls["time"], data_predictive["ci_lower"], color="blue",
+         linestyle="dashed")
+plt.plot(telephone_calls["time"], data_predictive["ci_upper"], color="blue",
+         linestyle="dashed")
+plt.grid(linestyle="dotted")
+plt.xlabel("Time")
+plt.ylabel("Average daily calls")
+plt.show()
+```
+
+
+### Example of Intervention
+
+```{python intervention}
+# Load data
+cp6 = load_cp6()
+
+# Defining the model
+a = np.array([600, 1])
+R = np.array([[100, 0], [0, 25]])
+mod = dlm(a, R, ntrend=2, deltrend=[0.90, 0.98])
+
+# Specifying the interventions
+list_interventions = [
+    {"time_index": 12, "which": ["variance", "noise"],
+     "parameters": [{"v_shift": "ignore"},
+                    {"h_shift": np.array([0, 0]),
+                     "H_shift": np.array([[1000, 25], [25, 25]])}]
+     },
+    {"time_index": 25, "which": ["noise", "variance"],
+     "parameters": [{"h_shift": np.array([80, 0]),
+                     "H_shift": np.array([[100, 0], [0, 0]])},
+                    {"v_shift": "ignore"}]},
+    {"time_index": 37, "which": ["subjective"],
+     "parameters": [{"a_star": np.array([970, 0]),
+                     "R_star": np.array([[50, 0], [0, 5]])}]}
+]
+
+# Fitting with the interventions
+manual_interventions = ManualIntervention(mod=mod)
+out_int = manual_interventions.fit(
+    y=cp6["sales"], interventions=list_interventions)
+dict_smooth = out_int.get("smooth")
+data_posterior = dict_smooth.get("posterior")
+data_level = data_posterior[data_posterior["parameter"] == "theta_1"].copy()
+data_level.head()
+```
+
+```{python plot-intervention}
+figure(figsize=(12, 8))
+plt.plot(cp6["time"], cp6["sales"], "o",
+         markersize=4, color="black", fillstyle="none")
+# plt.plot(df_fit["f"], color="red")
+plt.plot(cp6["time"], data_level["mean"], color="blue")
+plt.plot(cp6["time"], data_level["ci_lower"], color="blue",
+         linestyle="dashed")
+plt.plot(cp6["time"], data_level["ci_upper"], color="blue",
+         linestyle="dashed")
+plt.grid(linestyle="dotted")
+plt.xlabel("Time")
+plt.ylabel("Average daily calls")
+plt.show()
+```
+
+## Authors
+
+`pybats-detection` was developed by [André Menezes](https://andrmenezes.github.io/) and [Eduardo Gabriel](https://www.linkedin.com/in/eduardo-gabriel-433332142/) while working as Data Scientist at [Murabei Data Science](https://www.murabei.com/) advised by
+[André Baceti](https://br.linkedin.com/in/andre-baceti/pt) and professor [Hélio Migon](http://lattes.cnpq.br/7997248190492823).
+
+
+## License
+
+The `pybats-detection` package is released under the Apache License, Version 2.0.
+Please, see file `LICENSE.md`.

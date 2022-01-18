@@ -1,0 +1,269 @@
+---
+title: "Simulated examples for Smoothing class"
+author: "Eduardo Gabriel"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r include=FALSE}
+fig_path = '/modelagem/2021-10-21__paper_examples/modelos/resultados'
+```
+# Smoothing
+
+A brief introduction of the Smooth class in a simulated example.The time series 
+$\mathbf{Y} = (y_1, \dots, y_n)$ was generated using the 
+$RandomDLM$ class, which has as arguments (n, V, W) the number of observations, observational variance and state vector variance. The $.level$ method allows you 
+to define the starting level and regime change points.
+
+```{python}
+# Generating level data model
+np.random.seed(66)
+rdlm = RandomDLM(n=100, V=1, W=1)
+df_simulated = rdlm.level(
+    start_level=100,
+    dict_shift={})
+y = df_simulated["y"]
+```
+
+```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+df = py$df_simulated
+df %>% ggplot(aes(x = t, y = y)) +
+  geom_point(size = 3) + ylab(' ') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10))
+```
+The Smooth class allows you to perform a retrospective analysis of $\mathbf{Y}$.
+First, it is necessary to define the model components with prior values, which is 
+done with the $dlm$ class available in the $pybats$ package. In this case, it was 
+considered a DLM with level and growth. The prior vector and covariances are
+defined by $\mathbf{a}$ and $\mathbf{R}$. Lastly the discount factor denoted by 
+$deltrend$ is a constant in the interval (0, 1), it's used to coordinate the 
+adaptive capacity of predictions with increasing variance of model components. 
+
+Given this, the adjustment will be made considering the declared DLM, in which 
+the moments for prior and posterior distributions for all times will be saved. 
+Subsequently, these moments will be used to obtain the filtered distribution 
+of the state vector, recursively.
+
+```{python}
+# Define model components
+a = np.array([100, 0])
+R = np.eye(2)
+np.fill_diagonal(R, val=1)
+mod = dlm(a, R, ntrend=2, deltrend=1)
+
+# Fit with monitoring
+smooth = Smoothing(mod=mod)
+smooth_fit = smooth.fit(y=y)
+```
+
+The Smooth class will return a dictionary with 
+moments for: smoothed predictive and smoothed posterior for model components, 
+and some additional results such as bounds for credibility interval.
+
+```{python}
+smooth_fit.get('smooth').get('predictive')
+smooth_fit.get('smooth').get('posterior')
+```
+
+It is also interesting to investigate the recursive analysis considering 
+different discount factors. With the $shortcut\_run$ auxiliary method, two discount
+factors were tested.
+
+```{python}
+def shortcut_run(deltrend: np.float64):
+  """short cut for test smoothing with by deltrend."""
+  a = np.array([100, 0])
+  R = np.eye(2)
+  np.fill_diagonal(R, val=1)
+  mod = dlm(a, R, ntrend=2, deltrend=deltrend)
+  
+  # Fit with monitoring
+  smooth = Smoothing(mod=mod)
+  results_dict = smooth.fit(y=y).get('smooth')
+  results_dict.get('predictive').loc[:, 'delta'] = deltrend
+  results_dict.get('posterior').loc[:, 'delta'] = deltrend
+  results_dict.get('predictive').loc[:, 'real'] = y
+  
+  return results_dict
+
+deltrends = [0.95, 1]
+predictive_smooth_df = pd.concat([shortcut_run(i).get('predictive') for i in deltrends])
+posteriori_smooth_df = pd.concat([shortcut_run(i).get('posterior') for i in deltrends])
+```
+
+```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+predictive_smooth_df = py$predictive_smooth_df 
+posteriori_smooth_df = py$posteriori_smooth_df 
+
+p1 = predictive_smooth_df %>% filter(delta == 0.95) %>%
+  ggplot(aes(x = t)) + 
+  geom_point(aes(y = real)) + 
+  geom_line(aes(y = fk), colour = 'dodgerblue4') + ylab(' ') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=0.25, colour = 'grey40') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  ggtitle('deltrend = 0.95')
+
+p2 = predictive_smooth_df %>% filter(delta == 1) %>%
+  ggplot(aes(x = t)) + 
+  geom_point(aes(y = real)) + 
+  geom_line(aes(y = fk), colour = 'dodgerblue4') + ylab(' ') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=0.25, colour = 'grey40') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) + 
+  ggtitle('deltrend = 1')
+
+plot_grid(p1, p2, ncol=1)
+```
+
+```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+posterior_plot = function(data){
+  p = data %>% ggplot(aes(x = t)) +
+    geom_line(aes(y = mean), colour = 'dodgerblue4') + ylab(' ') +
+    geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper),
+                alpha = 0.25,
+                colour = 'grey40') +
+    scale_y_continuous(breaks = scales::pretty_breaks(10))
+  return(p)
+}
+
+p1 = posteriori_smooth_df %>% filter(parameter == 'theta_1', delta == .95) %>% 
+  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 0.95')
+p2 = posteriori_smooth_df %>% filter(parameter == 'theta_2', delta == .95) %>% 
+  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 0.95') + 
+  ylim(-.8, .8)
+p3 = posteriori_smooth_df %>% filter(parameter == 'theta_1', delta == 1) %>% 
+  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 1') 
+p4 = posteriori_smooth_df %>% filter(parameter == 'theta_2', delta == 1) %>% 
+  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 1') + 
+  ylim(-.8, .8)
+plot_grid(p1, p2, p3, p4)
+```
+
+## Aplication: AirPassangers dataset
+
+Below is a practical example with the classic Box & Jenkins airline data, 
+Monthly totals of international airline passengers (1949 to 1960), 
+using a normal DLM with three main components: Trend, Growth and Seasonality. 
+```{r echo=FALSE}
+data(AirPassengers)
+data_df = data.frame(value=AirPassengers)
+data_df$t = seq(as.Date("1949-01-01"), 
+                as.Date("1960-12-01"),  by="1 month")
+data_df %>% ggplot(aes(x = t, y = value)) + 
+  geom_line() + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  labs(x = "Month/Year", y = "Sales")
+```
+```{python, include=FALSE}
+# Data Loading
+data_df = r.data_df
+```
+Here it was specified a yearly seasonal effect of period 12, with the first two 
+harmonics. The discount factor for the seasonal components is 0.98. 
+```{python}
+a = np.array([112, 0, 1, -1, 1, -1])
+R = np.eye(6)
+np.fill_diagonal(R, val=1)
+mod = dlm(a, R, ntrend=2, deltrend=.95, delseas=.98,
+          seasPeriods=[12], seasHarmComponents=[[1, 2]])
+```
+
+```{python, include=FALSE}
+y = data_df['value']
+
+# Fit without monitoring
+smooth = Smoothing(mod=mod)
+smooth_fit = smooth.fit(y=y)
+
+predictive_filter_df = smooth_fit.get('filter').get('predictive')
+predictive_smooth_df = smooth_fit.get('smooth').get('predictive')
+posteriori_smooth_df = smooth_fit.get('smooth').get('posterior')
+
+predictive_filter_df['y'] = y.copy()
+predictive_smooth_df['y'] = y.copy()
+```
+
+```{python, include=FALSE, "Compute seasonality components sum mean"}
+ak = smooth._dict_smooth_parms.get('ak')
+seasonality_block = [ak[-i][2:] for i in range(1, len(ak)+1)]
+ones_vec = mod.F[2:]
+
+seasonality_mean = [(ones_vec.T @ seasonality_block[i])[0][0] for i in range(len(ak))]
+```
+
+```{python, include=FALSE, "Compute seasonality component sum variance"}
+Rk = smooth._dict_smooth_parms.get('Rk')
+seasonality_block = [Rk[-i][2:, 2:] for i in range(1, len(Rk)+1)]
+
+seasonality_variance = [(ones_vec.T @ seasonality_block[i] @ ones_vec)[0][0] for i in range(len(Rk))]
+
+seasonality_posteriori_smooth_df = pd.DataFrame({'parameter': 'theta_7', 
+'mean': seasonality_mean, 'variance': seasonality_variance, 
+'t': range(1, 145)}) 
+
+seasonality_posteriori_smooth_df['ci_lower'] = stats.t.ppf(
+  q=.025, df=seasonality_posteriori_smooth_df["t"].values[-1] + 1,
+  loc=seasonality_posteriori_smooth_df["mean"].values,
+  scale=np.sqrt(seasonality_posteriori_smooth_df["variance"].values))
+
+seasonality_posteriori_smooth_df['ci_upper'] = stats.t.ppf(
+  q=.975, df=seasonality_posteriori_smooth_df["t"].values[-1] + 1,
+  loc=seasonality_posteriori_smooth_df["mean"].values,
+  scale=np.sqrt(seasonality_posteriori_smooth_df["variance"].values))
+
+posteriori_smooth_df = pd.concat([posteriori_smooth_df, seasonality_posteriori_smooth_df])    
+```
+
+```{r, echo=FALSE, "plots for airpassangers example"}
+predictive_filter_df = py$predictive_filter_df 
+predictive_smooth_df = py$predictive_smooth_df 
+posteriori_smooth_df = py$posteriori_smooth_df 
+
+predictive_filter_df$t = data_df$t
+predictive_smooth_df$t = data_df$t
+posteriori_smooth_df$t = data_df$t
+
+p1 = predictive_filter_df %>% 
+  ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
+  geom_line(aes(y = f), colour = 'dodgerblue4') + 
+  ylab(' ') + xlab('Month/Year') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") + 
+  ggtitle('Filter')
+
+p2 = predictive_smooth_df %>% 
+  ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
+  geom_line(aes(y = fk), colour = 'dodgerblue4') + 
+  ylab(' ') + xlab('Month/Year') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") + 
+  ggtitle('Smooth')
+
+plot_grid(p1, p2, ncol=1)
+```
+Note that seasonality was included in using harmonic components which totals six parameters; for simplicity the results illustrated for this block of components concern the posterior distribution of their sum, whose mean and variance are given by
+
+$$
+\mu_{seasonality} = \mathbf{F}_{seasonality}^\top \mathbf{a}(-k)_{seasonality}, \\
+\sigma_{seasonality} = \mathbf{F}_{seasonality}^\top \mathbf{R}(-k)_{seasonality} \mathbf{F}_{seasonality}
+$$
+where $\mathbf{a}(-k)_{seasonality}$ and $\mathbf{R}(-k)_{seasonality}$ are the
+smoothed mean vector and the smoothed covariance of the posteriori distribution
+for the seasonality components. $\mathbf{F}$ is the regression vector associated.
+
+ 
+
+```{r, echo=FALSE, "components for airpassangers example"}
+p1 = posteriori_smooth_df %>% filter(parameter == 'theta_1') %>% 
+  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 0.95')
+p2 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
+  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 0.95')
+p3 = posteriori_smooth_df %>% filter(parameter == 'theta_7') %>% 
+  posterior_plot + ggtitle('Component: Seasonality', subtitle = 'deltrend = 0.98')
+
+plot_grid(p1, p2, p3)
+```
+
