@@ -15,8 +15,8 @@ The development version can be installed from
 [GitHub](https://github.com/) using:
 
 ``` bash
-$ git clone git@github.com:[USER]/[REPO].git [REPO]
-$ cd [REPO]
+$ git clone git@github.com:Murabei-OpenSource-Codes/pybats-detection.git pybats-detection
+$ cd pybats-detection
 $ sudo python setup.py install
 ```
 
