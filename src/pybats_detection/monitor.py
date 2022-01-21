@@ -336,7 +336,8 @@ class AutomaticMonitoring:
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
-        out = {"predictive": df_predictive, "posterior": df_posterior}
+        out = {"model": mod, "predictive": df_predictive,
+               "posterior": df_posterior}
         if self._smooth:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
@@ -551,7 +552,8 @@ class AutomaticMonitoring:
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
-        out = {"predictive": df_predictive, "posterior": df_posterior}
+        out = {"model": mod, "predictive": df_predictive,
+               "posterior": df_posterior}
         if self._smooth:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
