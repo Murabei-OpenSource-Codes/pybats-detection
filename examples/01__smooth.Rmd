@@ -9,10 +9,14 @@ fig_path = '/modelagem/2021-10-21__paper_examples/modelos/resultados'
 ```
 # Smoothing
 
-A brief introduction of the Smooth class in a simulated example.The time series 
-$\mathbf{Y} = (y_1, \dots, y_n)$ was generated using the 
-$RandomDLM$ class, which has as arguments (n, V, W) the number of observations, observational variance and state vector variance. The $.level$ method allows you 
-to define the starting level and regime change points.
+A brief introduction of the Smooth class in a simulated example.The time series $\mathbf{Y} = (y_1, \dots, y_n)$ was generated using the 
+$RandomDLM$ class which has the arguments (n, V, W): the number of observations, observational variance and state vector variance. This class has three methods that simulate data using different mechanisms:
+
+* $.level$: dynamic level model; 
+* $.growth$: dynamic growth model;
+* $.level\_with\_covariates$: dynamic level model where $Y$ is simulated given $X$, a matrix of fixed covariates. 
+
+For now, we stick with $.level$, simulating $n=100$ observations with both observational and state vector variance equals to one $1$, the starting level is set to $100$. The simulated data is plotted below. 
 
 ```{python}
 # Generating level data model
@@ -24,11 +28,13 @@ df_simulated = rdlm.level(
 y = df_simulated["y"]
 ```
 
-```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+```{r, message = FALSE, fig.cap="Simulated data", warnings = FALSE, echo=FALSE}
 df = py$df_simulated
 df %>% ggplot(aes(x = t, y = y)) +
   geom_point(size = 3) + ylab(' ') + 
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=20))
 ```
 The Smooth class allows you to perform a retrospective analysis of $\mathbf{Y}$.
 First, it is necessary to define the model components with prior values, which is 
@@ -43,12 +49,12 @@ the moments for prior and posterior distributions for all times will be saved.
 Subsequently, these moments will be used to obtain the filtered distribution 
 of the state vector, recursively.
 
-```{python}
+```{python, "Define model"}
 # Define model components
 a = np.array([100, 0])
 R = np.eye(2)
 np.fill_diagonal(R, val=1)
-mod = dlm(a, R, ntrend=2, deltrend=1)
+mod = dlm(a, R, ntrend=2, deltrend=.95)
 
 # Fit with monitoring
 smooth = Smoothing(mod=mod)
@@ -60,8 +66,8 @@ moments for: smoothed predictive and smoothed posterior for model components,
 and some additional results such as bounds for credibility interval.
 
 ```{python}
-smooth_fit.get('smooth').get('predictive')
-smooth_fit.get('smooth').get('posterior')
+smooth_fit.get('smooth').get('predictive').head()
+smooth_fit.get('smooth').get('posterior').head()
 ```
 
 It is also interesting to investigate the recursive analysis considering 
@@ -69,48 +75,39 @@ different discount factors. With the $shortcut\_run$ auxiliary method, two disco
 factors were tested.
 
 ```{python}
-def shortcut_run(deltrend: np.float64):
-  """short cut for test smoothing with by deltrend."""
-  a = np.array([100, 0])
-  R = np.eye(2)
-  np.fill_diagonal(R, val=1)
-  mod = dlm(a, R, ntrend=2, deltrend=deltrend)
-  
-  # Fit with monitoring
-  smooth = Smoothing(mod=mod)
-  results_dict = smooth.fit(y=y).get('smooth')
-  results_dict.get('predictive').loc[:, 'delta'] = deltrend
-  results_dict.get('posterior').loc[:, 'delta'] = deltrend
-  results_dict.get('predictive').loc[:, 'real'] = y
-  
-  return results_dict
+# Fit without monitoring
+predictive_filter_df = smooth_fit.get('filter').get('predictive')
+predictive_smooth_df = smooth_fit.get('smooth').get('predictive')
+posteriori_smooth_df = smooth_fit.get('smooth').get('posterior')
+posteriori_filter_df = smooth_fit.get('filter').get('posterior')
 
-deltrends = [0.95, 1]
-predictive_smooth_df = pd.concat([shortcut_run(i).get('predictive') for i in deltrends])
-posteriori_smooth_df = pd.concat([shortcut_run(i).get('posterior') for i in deltrends])
+predictive_filter_df['y'] = y.copy()
+predictive_smooth_df['y'] = y.copy()
 ```
 
-```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+```{r, echo=FALSE, "plots for smooth simulated example"}
+predictive_filter_df = py$predictive_filter_df 
 predictive_smooth_df = py$predictive_smooth_df 
 posteriori_smooth_df = py$posteriori_smooth_df 
+posteriori_filter_df = py$posteriori_filter_df 
 
-p1 = predictive_smooth_df %>% filter(delta == 0.95) %>%
-  ggplot(aes(x = t)) + 
-  geom_point(aes(y = real)) + 
-  geom_line(aes(y = fk), colour = 'dodgerblue4') + ylab(' ') + 
-  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
-              alpha=0.25, colour = 'grey40') + 
+p1 = predictive_filter_df %>% 
+  ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
+  geom_line(aes(y = f), colour = 'dodgerblue4') + 
+  ylab(' ') + xlab('t') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  ggtitle('deltrend = 0.95')
+  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  ggtitle('Filter')
 
-p2 = predictive_smooth_df %>% filter(delta == 1) %>%
-  ggplot(aes(x = t)) + 
-  geom_point(aes(y = real)) + 
-  geom_line(aes(y = fk), colour = 'dodgerblue4') + ylab(' ') + 
-  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
-              alpha=0.25, colour = 'grey40') + 
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) + 
-  ggtitle('deltrend = 1')
+p2 = predictive_smooth_df %>% 
+  ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
+  geom_line(aes(y = fk), colour = 'dodgerblue4') + 
+  ylab(' ') + xlab('t') + 
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  ggtitle('Smooth')
 
 plot_grid(p1, p2, ncol=1)
 ```
@@ -126,16 +123,16 @@ posterior_plot = function(data){
   return(p)
 }
 
-p1 = posteriori_smooth_df %>% filter(parameter == 'theta_1', delta == .95) %>% 
-  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 0.95')
-p2 = posteriori_smooth_df %>% filter(parameter == 'theta_2', delta == .95) %>% 
-  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 0.95') + 
-  ylim(-.8, .8)
-p3 = posteriori_smooth_df %>% filter(parameter == 'theta_1', delta == 1) %>% 
-  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 1') 
-p4 = posteriori_smooth_df %>% filter(parameter == 'theta_2', delta == 1) %>% 
-  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 1') + 
-  ylim(-.8, .8)
+p1 = posteriori_filter_df %>% filter(parameter == 'theta_1') %>% 
+  posterior_plot + ggtitle('Filter', subtitle = 'Component: Level')
+p2 = posteriori_filter_df %>% filter(parameter == 'theta_2') %>% 
+  posterior_plot + ggtitle('Filter', subtitle = 'Component: Growth') + 
+  ylim(-2.0, 2.0)
+p3 = posteriori_smooth_df %>% filter(parameter == 'theta_1') %>% 
+  posterior_plot + ggtitle('Smooth', subtitle = 'Component: Level') 
+p4 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
+  posterior_plot + ggtitle('Smooth', subtitle = 'Component: Growth') + 
+  ylim(-2.0, 2.0)
 plot_grid(p1, p2, p3, p4)
 ```
 
