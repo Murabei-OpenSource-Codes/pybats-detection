@@ -19,6 +19,7 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(ggplot2)
 library(cowplot)
+library(knitr)
 
 theme_set(
   theme_cowplot(font_size = 14, font_family = "Palatino") +
@@ -44,13 +45,11 @@ from pybats_detection.intervention import ManualIntervention
 np.set_printoptions(precision=4)
 ```
 
-
 ```{r smooth, child = "01__smooth.Rmd"}
 ```
 
 ```{r intervention, child = "02__manual_intervention.Rmd"}
 ```
-
 
 ```{r monitor, child = "03__automatic_monitor.Rmd"}
 ```

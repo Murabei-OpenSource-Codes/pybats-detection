@@ -1,5 +1,5 @@
 rm(list = ls())
-path <- "./packages/pybats_detection/examples"
+path <- "../examples"
 fname <- paste0(format(Sys.Date(), "%Y-%m-%d"), "__vignette")
 rmarkdown::render(input = file.path(path, "index.Rmd"),
                   output_file = "vignette",

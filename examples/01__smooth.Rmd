@@ -4,12 +4,9 @@ author: "Eduardo Gabriel"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
-```{r include=FALSE}
-fig_path = '/modelagem/2021-10-21__paper_examples/modelos/resultados'
-```
 # Smoothing
 
-A brief introduction of the Smooth class in a simulated example.The time series $\mathbf{Y} = (y_1, \dots, y_n)$ was generated using the 
+A brief introduction of the Smoothing class in a simulated example. A time series $\mathbf{Y} = (y_1, \dots, y_T)$ was generated using the 
 $RandomDLM$ class which has the arguments (n, V, W): the number of observations, observational variance and state vector variance. This class has three methods that simulate data using different mechanisms:
 
 * $.level$: dynamic level model; 
@@ -28,26 +25,21 @@ df_simulated = rdlm.level(
 y = df_simulated["y"]
 ```
 
-```{r, message = FALSE, fig.cap="Simulated data", warnings = FALSE, echo=FALSE}
+```{r, message = FALSE, fig.cap="Simulated data", fig.dim=c(16,9), warnings = FALSE, echo=FALSE, out.width = "90%"}
 df = py$df_simulated
 df %>% ggplot(aes(x = t, y = y)) +
   geom_point(size = 3) + ylab(' ') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  theme(axis.text=element_text(size=20))
+  theme(axis.text=element_text(size=20), 
+        axis.title=element_text(size=20))
 ```
-The Smooth class allows you to perform a retrospective analysis of $\mathbf{Y}$.
-First, it is necessary to define the model components with prior values, which is 
-done with the $dlm$ class available in the $pybats$ package. In this case, it was 
-considered a DLM with level and growth. The prior vector and covariances are
-defined by $\mathbf{a}$ and $\mathbf{R}$. Lastly the discount factor denoted by 
-$deltrend$ is a constant in the interval (0, 1), it's used to coordinate the 
+The Smoothing class allows you to perform a retrospective analysis for $\mathbf{Y}$, obtaining the distribution of $(\boldsymbol{\theta}_{T-k} \vert D_T)$, for $k \geq 1$, the k-step smoothed distribution for the state vector at time $T$, which is analogous to the k-step ahead forecast distribution $(\boldsymbol{\theta}_{t+k}\vert D_t)$. 
+
+To use Smoothing, first it is necessary to define the model components with prior values, which is done with the $dlm$ class available in the $pybats$ package. In this case, it was considered a DLM with level and growth. The prior vector and covariances are defined by $\mathbf{a}$ and $\mathbf{R}$. Lastly, the discount factor denoted by $deltrend$ is a constant in the interval (0, 1), it's used to coordinate the 
 adaptive capacity of predictions with increasing variance of model components. 
 
-Given this, the adjustment will be made considering the declared DLM, in which 
-the moments for prior and posterior distributions for all times will be saved. 
-Subsequently, these moments will be used to obtain the filtered distribution 
-of the state vector, recursively.
+Given this, the method $.fit$ will initialize the model and the loop forecast, observe and update begin. The prior and posterior moments $(\mathbf{a}_t, \mathbf{m}_t, \mathbf{C}_t, \mathbf{R}_t)$ will be computed for all $t$ and saved.  Subsequently, these moments will be used to obtain the moments for $(\boldsymbol{\theta}_{T-k} \vert D_T)$, recursively with $k \geq 1$, and denoted by $(\mathbf{a}_T(-k), \mathbf{m}_T(-k), \mathbf{C}_T(-k), \mathbf{R}_T(-k))$.
 
 ```{python, "Define model"}
 # Define model components
@@ -61,31 +53,57 @@ smooth = Smoothing(mod=mod)
 smooth_fit = smooth.fit(y=y)
 ```
 
-The Smooth class will return a dictionary with 
-moments for: smoothed predictive and smoothed posterior for model components, 
-and some additional results such as bounds for credibility interval.
+This will return a dictionary with 
+moments for: smoothed and filtered predictive distributions and for the posterior distributions of the model components. Below the results for the predictive distributions 
 
-```{python}
-smooth_fit.get('smooth').get('predictive').head()
-smooth_fit.get('smooth').get('posterior').head()
+## Smoothed Predictive
+```{python, echo=FALSE}
+tab1 = smooth_fit.get('smooth').get('predictive').round(2).head()
+tab2 = smooth_fit.get('smooth').get('posterior').round(2).head()
+tab3 = smooth_fit.get('filter').get('predictive').round(2).head()
+tab4 = smooth_fit.get('filter').get('posterior').round(2).head()
 ```
 
-It is also interesting to investigate the recursive analysis considering 
-different discount factors. With the $shortcut\_run$ auxiliary method, two discount
-factors were tested.
+The results for the smoothed predictive distribution consists of: $f_T(-k), q_T(-k)$ and the bounds for the credibility interval ($ci\_lower, ci\_upper$). Given by
 
-```{python}
+$$
+f_T(-k) = \mathbf{F}^{'} \mathbf{a}_T(-k), \quad \quad q_T(-k) = \mathbf{F}^{'} \mathbf{R}_T(-k) \mathbf{F}
+$$
+The credibility interval is is obtained from the corresponding smoothed distributions for the mean response of the series. Since $V$ is considered unknown, then 
+
+$$
+(\mu_T(-k) \vert D_T) \sim T_{n_t}[f_T(-k), q_T(-k)]
+$$
+For this simulated example, the results for the smoothed predictive distribution for the mean response are 
+```{python, results='hide'}
+smooth_fit.get('smooth').get('predictive').round(2).head()
+```
+
+```{r, echo=FALSE, results='asis'}
+tab1 = py$tab1
+tab2 = py$tab2
+tab3 = py$tab3
+tab4 = py$tab4
+
+kable(tab1, caption = 'Smothed predictive distribution results')
+```
+
+```{python, echo=FALSE}
 # Fit without monitoring
 predictive_filter_df = smooth_fit.get('filter').get('predictive')
 predictive_smooth_df = smooth_fit.get('smooth').get('predictive')
 posteriori_smooth_df = smooth_fit.get('smooth').get('posterior')
 posteriori_filter_df = smooth_fit.get('filter').get('posterior')
+```
 
+```{python, echo=FALSE}
 predictive_filter_df['y'] = y.copy()
 predictive_smooth_df['y'] = y.copy()
 ```
 
-```{r, echo=FALSE, "plots for smooth simulated example"}
+Plotting the filtered vs smoothed predictive distributions results is possible to see difference, primarily in the length of the credibility interval. 
+
+```{r, echo=FALSE, fig.dim=c(16, 9), out.width = "90%", "plots for smooth simulated example"}
 predictive_filter_df = py$predictive_filter_df 
 predictive_smooth_df = py$predictive_smooth_df 
 posteriori_smooth_df = py$posteriori_smooth_df 
@@ -98,6 +116,7 @@ p1 = predictive_filter_df %>%
   geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
   ggtitle('Filter')
 
 p2 = predictive_smooth_df %>% 
@@ -107,9 +126,15 @@ p2 = predictive_smooth_df %>%
   geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
   ggtitle('Smooth')
 
-plot_grid(p1, p2, ncol=1)
+plot_grid(p1, p2, ncol=2)
+```
+
+## Smoothe Posterior
+```{python, results='hide'}
+smooth_fit.get('smooth').get('posterior').round(2).head()
 ```
 
 ```{r, message = FALSE, warnings = FALSE, echo=FALSE}
