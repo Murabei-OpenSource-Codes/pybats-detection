@@ -36,7 +36,7 @@ df %>% ggplot(aes(x = t, y = y)) +
 ```
 The Smoothing class allows you to perform a retrospective analysis for $\mathbf{Y}$, obtaining the distribution of $(\boldsymbol{\theta}_{T-k} \vert D_T)$, for $k \geq 1$, the k-step smoothed distribution for the state vector at time $T$, which is analogous to the k-step ahead forecast distribution $(\boldsymbol{\theta}_{t+k}\vert D_t)$. 
 
-To use Smoothing, first it is necessary to define the model components with prior values, which is done with the $dlm$ class available in the $pybats$ package. In this case, it was considered a DLM with level and growth. The prior vector and covariances are defined by $\mathbf{a}$ and $\mathbf{R}$. Lastly, the discount factor denoted by $deltrend$ is a constant in the interval (0, 1), it's used to coordinate the 
+To use Smoothing, first it is necessary to define the model components with prior values, which is done with the $dlm$ class available in the $pybats$ package. In this case, it was considered a DLM with level and growth. The prior vector and covariances are defined by $\mathbf{a}$ and $\mathbf{R}$. Lastly, the discount factor denoted by $deltrend$ is a constant in the interval (0, 1), which is used to coordinate the 
 adaptive capacity of predictions with increasing variance of model components. 
 
 Given this, the method $.fit$ will initialize the model and the loop forecast, observe and update begin. The prior and posterior moments $(\mathbf{a}_t, \mathbf{m}_t, \mathbf{C}_t, \mathbf{R}_t)$ will be computed for all $t$ and saved.  Subsequently, these moments will be used to obtain the moments for $(\boldsymbol{\theta}_{T-k} \vert D_T)$, recursively with $k \geq 1$, and denoted by $(\mathbf{a}_T(-k), \mathbf{m}_T(-k), \mathbf{C}_T(-k), \mathbf{R}_T(-k))$.
@@ -56,7 +56,7 @@ smooth_fit = smooth.fit(y=y)
 This will return a dictionary with 
 moments for: smoothed and filtered predictive distributions and for the posterior distributions of the model components. Below the results for the predictive distributions 
 
-## Smoothed Predictive
+## smoothed predictive
 ```{python, echo=FALSE}
 tab1 = smooth_fit.get('smooth').get('predictive').round(2).head()
 tab2 = smooth_fit.get('smooth').get('posterior').round(2).head()
@@ -72,7 +72,7 @@ $$
 The credibility interval is is obtained from the corresponding smoothed distributions for the mean response of the series. Since $V$ is considered unknown, then 
 
 $$
-(\mu_T(-k) \vert D_T) \sim T_{n_t}[f_T(-k), q_T(-k)]
+(\mu_T(-k) \vert D_T) \sim T_{n_T}[f_T(-k), q_T(-k)]
 $$
 For this simulated example, the results for the smoothed predictive distribution for the mean response are 
 ```{python, results='hide'}
@@ -117,7 +117,10 @@ p1 = predictive_filter_df %>%
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(10)) +
   theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
-  ggtitle('Filter')
+  ggtitle('Filter') + 
+  theme(axis.text=element_text(size=20), 
+      axis.title=element_text(size=20))
+
 
 p2 = predictive_smooth_df %>% 
   ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
@@ -127,24 +130,46 @@ p2 = predictive_smooth_df %>%
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_continuous(breaks = scales::pretty_breaks(10)) +
   theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
-  ggtitle('Smooth')
+  ggtitle('Smooth') + 
+  theme(axis.text=element_text(size=20), 
+      axis.title=element_text(size=20))
 
 plot_grid(p1, p2, ncol=2)
 ```
 
-## Smoothe Posterior
+## smoothed posterior
+The results for the posterior distributions are analogous, where
+
+* parameter: Indicator for the respective state space parameter in $\boldsymbol{\theta}$; 
+* mean: The smoothed posterior distribution mean for time $t=T-k$ ($\mathbf{m}(-k)$); 
+* variance: The smoothed posterior distribution variance for time $t$ ($\mathbf{C}(-k)$).
+* credibility interval ($ci\_lower, ci\_upper$): The credibility interval obtained from the corresponding smoothed posterior distributions. Since $V$ is considered unknown, then 
+
+$$
+(\boldsymbol{\theta}_{T-k} \vert D_T) \sim T_{n_T}[\mathbf{a}_T(-k), \mathbf{R}_T(-k)].
+$$
 ```{python, results='hide'}
 smooth_fit.get('smooth').get('posterior').round(2).head()
 ```
 
-```{r, message = FALSE, warnings = FALSE, echo=FALSE}
+```{r, echo=FALSE, results='asis'}
+kable(tab2, "simple", caption = 'Smothed posterior distribution results')
+```
+
+As before we plot the results for filtered and smoothed distributions, in this case for each state space parameter. As expected, the smoothed posterior distributions show a less erratic behavior with shorter credibility intervals. 
+
+```{r, message = FALSE, warnings = FALSE, echo=FALSE, fig.dim=c(16,9), out.width="90%"}
 posterior_plot = function(data){
   p = data %>% ggplot(aes(x = t)) +
     geom_line(aes(y = mean), colour = 'dodgerblue4') + ylab(' ') +
     geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper),
                 alpha = 0.25,
                 colour = 'grey40') +
-    scale_y_continuous(breaks = scales::pretty_breaks(10))
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_x_continuous(breaks = scales::pretty_breaks(10))
+    theme(axis.text=element_text(size=20), 
+      axis.title=element_text(size=20))
+
   return(p)
 }
 
@@ -164,9 +189,9 @@ plot_grid(p1, p2, p3, p4)
 ## Aplication: AirPassangers dataset
 
 Below is a practical example with the classic Box & Jenkins airline data, 
-Monthly totals of international airline passengers (1949 to 1960), 
-using a normal DLM with three main components: Trend, Growth and Seasonality. 
-```{r echo=FALSE}
+Monthly totals of international airline passengers (1949 to 1960). This data has a clear multiplicative seasonality, using a linear model (with additive seasonality) may be a naive approximation for this data. But, just for the sake of comparison between filtered and smoothing we stick with the linear model. 
+
+```{r echo=FALSE, fig.dim=c(16,9), out.width = "90%"}
 data(AirPassengers)
 data_df = data.frame(value=AirPassengers)
 data_df$t = seq(as.Date("1949-01-01"), 
@@ -174,15 +199,25 @@ data_df$t = seq(as.Date("1949-01-01"),
 data_df %>% ggplot(aes(x = t, y = value)) + 
   geom_line() + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  labs(x = "Month/Year", y = "Sales")
+  scale_x_date(breaks = scales::pretty_breaks(10), date_labels = "%b/%Y") +
+  labs(x = "Month/Year", y = "Sales") + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20))
 ```
+
 ```{python, include=FALSE}
 # Data Loading
 data_df = r.data_df
 ```
-Here it was specified a yearly seasonal effect of period 12, with the first two 
-harmonics. The discount factor for the seasonal components is 0.98. 
+
+Using a normal DLM with three main components: Trend, Growth and Seasonality.
+The seasonality is modeled using the Fourier form representation, which depends on the parity of a period $p$ and the number of harmonics components. Formally, the $\mathbf{r}^{th}$ harmonic component is given by
+
+$$
+S_r(.) = a_r \cos(\alpha r) + b_r \sin(\alpha r), \quad r=1, \dots, h, \quad 
+a_r = 2\pi/p, \quad h <= p /2 
+$$
+Here it was specified a yearly seasonal effect with period $p=12$ and the first two harmonics. The discount factor for the level and growth components is set to 0.95, and 0.98 for the seasonal components. The results are plotted below. 
 ```{python}
 a = np.array([112, 0, 1, -1, 1, -1])
 R = np.eye(6)
@@ -200,13 +235,14 @@ smooth_fit = smooth.fit(y=y)
 
 predictive_filter_df = smooth_fit.get('filter').get('predictive')
 predictive_smooth_df = smooth_fit.get('smooth').get('predictive')
+posteriori_filter_df = smooth_fit.get('filter').get('posterior')
 posteriori_smooth_df = smooth_fit.get('smooth').get('posterior')
 
 predictive_filter_df['y'] = y.copy()
 predictive_smooth_df['y'] = y.copy()
 ```
 
-```{python, include=FALSE, "Compute seasonality components sum mean"}
+```{python, include=FALSE, "Compute seasonality components sum mean smooth"}
 ak = smooth._dict_smooth_parms.get('ak')
 seasonality_block = [ak[-i][2:] for i in range(1, len(ak)+1)]
 ones_vec = mod.F[2:]
@@ -214,7 +250,7 @@ ones_vec = mod.F[2:]
 seasonality_mean = [(ones_vec.T @ seasonality_block[i])[0][0] for i in range(len(ak))]
 ```
 
-```{python, include=FALSE, "Compute seasonality component sum variance"}
+```{python, include=FALSE, "Compute seasonality component sum variance smooth"}
 Rk = smooth._dict_smooth_parms.get('Rk')
 seasonality_block = [Rk[-i][2:, 2:] for i in range(1, len(Rk)+1)]
 
@@ -237,14 +273,50 @@ seasonality_posteriori_smooth_df['ci_upper'] = stats.t.ppf(
 posteriori_smooth_df = pd.concat([posteriori_smooth_df, seasonality_posteriori_smooth_df])    
 ```
 
-```{r, echo=FALSE, "plots for airpassangers example"}
+
+```{python, include=FALSE, "Compute seasonality components sum mean filter"}
+m = smooth._dict_state_parms.get('posterior').get('m')
+seasonality_block = [m[-i][2:] for i in range(1, len(m)+1)]
+ones_vec = mod.F[2:]
+
+seasonality_mean = [(ones_vec.T @ seasonality_block[i])[0][0] for i in range(len(m))]
+```
+
+```{python, include=FALSE, "Compute seasonality component sum variance filter"}
+C = smooth._dict_state_parms.get('posterior').get('C')
+seasonality_block = [C[-i][2:, 2:] for i in range(1, len(C)+1)]
+
+seasonality_variance = [(ones_vec.T @ seasonality_block[i] @ ones_vec)[0][0] for i in range(len(C))]
+
+seasonality_posteriori_filter_df = pd.DataFrame({'parameter': 'theta_7', 
+'mean': seasonality_mean, 'variance': seasonality_variance, 
+'t': range(1, 145)}) 
+
+seasonality_posteriori_filter_df['ci_lower'] = stats.t.ppf(
+  q=.025, df=seasonality_posteriori_filter_df["t"].values[-1] + 1,
+  loc=seasonality_posteriori_filter_df["mean"].values,
+  scale=np.sqrt(seasonality_posteriori_filter_df["variance"].values))
+
+seasonality_posteriori_filter_df['ci_upper'] = stats.t.ppf(
+  q=.975, df=seasonality_posteriori_filter_df["t"].values[-1] + 1,
+  loc=seasonality_posteriori_filter_df["mean"].values,
+  scale=np.sqrt(seasonality_posteriori_filter_df["variance"].values))
+
+posteriori_filter_df = pd.concat([posteriori_filter_df, seasonality_posteriori_filter_df])    
+```
+
+```{r, echo=FALSE, fig.dim=c(16, 9), out.width="90%", "plots for airpassangers example"}
 predictive_filter_df = py$predictive_filter_df 
 predictive_smooth_df = py$predictive_smooth_df 
 posteriori_smooth_df = py$posteriori_smooth_df 
+posteriori_filter_df = py$posteriori_filter_df 
+
+data_df = data_df %>% mutate(t_idx = 1:144)
 
 predictive_filter_df$t = data_df$t
 predictive_smooth_df$t = data_df$t
 posteriori_smooth_df$t = data_df$t
+posteriori_filter_df$t = data_df$t
 
 p1 = predictive_filter_df %>% 
   ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
@@ -252,8 +324,10 @@ p1 = predictive_filter_df %>%
   ylab(' ') + xlab('Month/Year') + 
   geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") + 
-  ggtitle('Filter')
+  scale_x_date(breaks = scales::pretty_breaks(10), date_labels = "%b/%Y") + 
+  ggtitle('Filter') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20))
 
 p2 = predictive_smooth_df %>% 
   ggplot(aes(x = t)) + geom_point(aes(y = y)) + 
@@ -261,31 +335,48 @@ p2 = predictive_smooth_df %>%
   ylab(' ') + xlab('Month/Year') + 
   geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), alpha=0.25, colour = 'grey40') + 
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") + 
-  ggtitle('Smooth')
+  scale_x_date(breaks = scales::pretty_breaks(10), date_labels = "%b/%Y") + 
+  ggtitle('Smooth') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20))
 
 plot_grid(p1, p2, ncol=1)
 ```
-Note that seasonality was included in using harmonic components which totals six parameters; for simplicity the results illustrated for this block of components concern the posterior distribution of their sum, whose mean and variance are given by
+
+Since the seasonality was modeled using harmonic components, the model has a total of six parameters: level, growth and four for seasonality ($a_1, b_1, a_2, b_2$). For simplicity, the results for de posterior distributions considered the sum of the harmonic components, whose moments are given by
 
 $$
-\mu_{seasonality} = \mathbf{F}_{seasonality}^\top \mathbf{a}(-k)_{seasonality}, \\
-\sigma_{seasonality} = \mathbf{F}_{seasonality}^\top \mathbf{R}(-k)_{seasonality} \mathbf{F}_{seasonality}
+\mu_{seas} = F_{seas}^{\top} \mathbf{a}_T(-k), \quad \quad \sigma^2_{seas} = F_{seas}^{\top} \mathbf{R}_T(-k) F_{seas}
 $$
-where $\mathbf{a}(-k)_{seasonality}$ and $\mathbf{R}(-k)_{seasonality}$ are the
-smoothed mean vector and the smoothed covariance of the posteriori distribution
-for the seasonality components. $\mathbf{F}$ is the regression vector associated.
+where $F_{seas}^{\top} = [0,0,1,0,1]$. The results are ploted below. 
 
- 
 
-```{r, echo=FALSE, "components for airpassangers example"}
+```{r, echo=FALSE, fig.dim = c(16, 9), out.width="90%", "components for airpassangers example"}
+date_posterior_plot = function(data){
+  p = data %>% ggplot(aes(x = t)) +
+    geom_line(aes(y = mean), colour = 'dodgerblue4') + ylab(' ') +
+    geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper),
+                alpha = 0.25,
+                colour = 'grey40') +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_x_date(breaks = scales::pretty_breaks(10), date_labels = "%b/%Y") +      theme(axis.text=element_text(size=15), 
+          axis.title=element_text(size=15)) + 
+    xlab('Month/Year')
+
+  return(p)
+}
+
 p1 = posteriori_smooth_df %>% filter(parameter == 'theta_1') %>% 
-  posterior_plot + ggtitle('Component: Level', subtitle = 'deltrend = 0.95')
-p2 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
-  posterior_plot + ggtitle('Component: Growth', subtitle = 'deltrend = 0.95')
-p3 = posteriori_smooth_df %>% filter(parameter == 'theta_7') %>% 
-  posterior_plot + ggtitle('Component: Seasonality', subtitle = 'deltrend = 0.98')
+  date_posterior_plot + ggtitle('Component: Level')
 
-plot_grid(p1, p2, p3)
+p_test = posteriori_filter_df %>% filter(parameter == 'theta_1') %>% 
+  date_posterior_plot + ggtitle('Filter', subtitle = 'Component: Level')
+
+p3 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
+  date_posterior_plot + ggtitle('Component: Growth')
+p4 = posteriori_smooth_df %>% filter(parameter == 'theta_7') %>% 
+  date_posterior_plot + ggtitle('Component: Seasonality')
+
+plot_grid(p1, p3, p4)
 ```
 
