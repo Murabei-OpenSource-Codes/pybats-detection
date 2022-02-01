@@ -5,7 +5,8 @@ output: github_document
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
 ```{r, include = FALSE}
-options(digits = 4, prompt = "$ ", continue = "$ ", width = 70,
+options(digits = 4,
+        prompt = "$ ", continue = "$ ", width = 70,
         useFancyQuotes = FALSE)
 library(reticulate)
 use_virtualenv(virtualenv = "pybats_detection", required = TRUE)
@@ -17,26 +18,26 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
 
 ## `pybats-detection`
 
-> The `pybats-detection` is a `python` package with routines for detection of outlier and structural changes in time series using Bayesian Dynamic Linear Models.
-> The currently version of the package implements the automatic monitoring, manual intervention and smoothing.
+> The `pybats-detection` is a `python` package with routines for detection of outlier and structural changes in time series using Bayesian Dynamic Linear Models (DLM).
+> The currently version of the package implements the automatic monitoring, manual intervention and smoothing for DLM's.
 
 ## Installation
 
 The development version can be installed from [GitHub](https://github.com/) using:
 
 ```{bash, eval = FALSE}
-git clone git@github.com:[USER]/[REPO].git [REPO]
-cd [REPO]
-sudo python setup.py install
+git clone git@github.com:Murabei-OpenSource-Codes/pybats-detection.git pybats-detection
+cd pybats-detection
+python setup.py install
 ```
 
 ## Quick overview
 
-The package uses the `pybats.dglm.dlm` objects from [`pybats`](https://github.com/lavinei/pybats) as input of the following classes:
+The package uses the `pybats.dglm.dlm` objects from [`PyBATS`](https://github.com/lavinei/pybats) package as an input for the following classes:
 
-- `AutomaticMonitoring`: perform automatic monitoring of outlier and/or structural changes in time series according to [West and Harisson (1986)](https://www.tandfonline.com/doi/abs/10.1080/01621459.1986.10478331) .
+- `Monitoring`: perform automatic monitoring of outlier and/or structural changes in time series according to [West and Harisson (1986)](https://www.tandfonline.com/doi/abs/10.1080/01621459.1986.10478331) .
 
-- `ManualIntervention`: perform manual intervention of outlier and/or structural changes in time series according to [West and Harrison (1989)](https://onlinelibrary.wiley.com/doi/abs/10.1002/for.3980080104).
+- `Intervention`: perform manual intervention of outlier and/or structural changes in time series according to [West and Harrison (1989)](https://onlinelibrary.wiley.com/doi/abs/10.1002/for.3980080104).
 
 - `Smoothing`: compute the retrospective state space and predictive distributions.
 
@@ -56,9 +57,9 @@ import matplotlib.pyplot as plt
 from pybats.dglm import dlm
 from matplotlib.pyplot import figure
 from pybats_detection.loader import load_cp6
-from pybats_detection.monitor import AutomaticMonitoring
+from pybats_detection.monitor import Monitoring
 from pybats_detection.loader import load_telephone_calls
-from pybats_detection.intervention import ManualIntervention
+from pybats_detection.intervention import Intervention
 
 # Load data
 telephone_calls = load_telephone_calls()
@@ -70,7 +71,7 @@ np.fill_diagonal(R, val=[100])
 mod = dlm(a, R, ntrend=2, deltrend=0.95)
 
 # Fitting with the automatic monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=True, prior_length=20)
+monitor = Monitoring(mod=mod, bilateral=True, prior_length=20)
 fit_monitor = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
                           tau=0.135, change_var=[10, 2])
 dict_filter = fit_monitor.get("filter")
@@ -125,7 +126,7 @@ list_interventions = [
 ]
 
 # Fitting with the interventions
-manual_interventions = ManualIntervention(mod=mod)
+manual_interventions = Intervention(mod=mod)
 out_int = manual_interventions.fit(
     y=cp6["sales"], interventions=list_interventions)
 dict_smooth = out_int.get("smooth")
@@ -146,14 +147,17 @@ plt.plot(cp6["time"], data_level["ci_upper"], color="blue",
          linestyle="dashed")
 plt.grid(linestyle="dotted")
 plt.xlabel("Time")
-plt.ylabel("Average daily calls")
+plt.ylabel("Monthly total sales")
 plt.show()
 ```
 
 ## Authors
 
-`pybats-detection` was developed by [André Menezes](https://andrmenezes.github.io/) and [Eduardo Gabriel](https://www.linkedin.com/in/eduardo-gabriel-433332142/) while working as Data Scientist at [Murabei Data Science](https://www.murabei.com/) advised by
-[André Baceti](https://br.linkedin.com/in/andre-baceti/pt) and professor [Hélio Migon](http://lattes.cnpq.br/7997248190492823).
+`pybats-detection` was developed by [André Menezes](https://andrmenezes.github.io/) and
+[Eduardo Gabriel](https://www.linkedin.com/in/eduardo-gabriel-433332142/)
+while working as Data Scientist at [Murabei Data Science](https://www.murabei.com/)
+advised by professor [Hélio Migon](http://lattes.cnpq.br/7997248190492823) and
+[André Baceti](https://br.linkedin.com/in/andre-baceti/pt) .
 
 
 ## License

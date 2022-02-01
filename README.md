@@ -5,9 +5,9 @@
 
 > The `pybats-detection` is a `python` package with routines for
 > detection of outlier and structural changes in time series using
-> Bayesian Dynamic Linear Models. The currently version of the package
-> implements the automatic monitoring, manual intervention and
-> smoothing.
+> Bayesian Dynamic Linear Models (DLM). The currently version of the
+> package implements the automatic monitoring, manual intervention and
+> smoothing for DLM’s.
 
 ## Installation
 
@@ -17,26 +17,26 @@ The development version can be installed from
 ``` bash
 $ git clone git@github.com:Murabei-OpenSource-Codes/pybats-detection.git pybats-detection
 $ cd pybats-detection
-$ sudo python setup.py install
+$ python setup.py install
 ```
 
 ## Quick overview
 
 The package uses the `pybats.dglm.dlm` objects from
-[`pybats`](https://github.com/lavinei/pybats) as input of the following
-classes:
+[`PyBATS`](https://github.com/lavinei/pybats) package as an input for
+the following classes:
 
--   `AutomaticMonitoring`: perform automatic monitoring of outlier
-    and/or structural changes in time series according to [West and
+-   `Monitoring`: perform automatic monitoring of outlier and/or
+    structural changes in time series according to [West and
     Harisson (1986)](https://www.tandfonline.com/doi/abs/10.1080/01621459.1986.10478331)
     .
 
--   `ManualIntervention`: perform manual intervention of outlier and/or
+-   `Intervention`: perform manual intervention of outlier and/or
     structural changes in time series according to [West and
     Harrison (1989)](https://onlinelibrary.wiley.com/doi/abs/10.1002/for.3980080104).
 
--   `Smoothing`: compute the retrospective state parameters and
-    predictive distribution.
+-   `Smoothing`: compute the retrospective state space and predictive
+    distributions.
 
 All three classes have the `fit` method which received the univariate
 time series as a `pandas.Series` object and further arguments related to
@@ -51,9 +51,9 @@ each class.
 >>> from pybats.dglm import dlm
 >>> from matplotlib.pyplot import figure
 >>> from pybats_detection.loader import load_cp6
->>> from pybats_detection.monitor import AutomaticMonitoring
+>>> from pybats_detection.monitor import Monitoring
 >>> from pybats_detection.loader import load_telephone_calls
->>> from pybats_detection.intervention import ManualIntervention
+>>> from pybats_detection.intervention import Intervention
 >>> 
 >>> # Load data
 >>> telephone_calls = load_telephone_calls()
@@ -65,32 +65,32 @@ each class.
 >>> mod = dlm(a, R, ntrend=2, deltrend=0.95)
 >>> 
 >>> # Fitting with the automatic monitoring
->>> monitor = AutomaticMonitoring(mod=mod, bilateral=True, prior_length=20)
+>>> monitor = Monitoring(mod=mod, bilateral=True, prior_length=20)
 >>> fit_monitor = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
 >>>                           tau=0.135, change_var=[10, 2])
 ```
 
-    ## Upper potential outlier detected at time 24 with H=0.006182801077763127, L=0.006182801077763127and l=1
-    ## Upper potential outlier detected at time 36 with H=0.04695009275309578, L=0.04695009275309578and l=1
-    ## Upper potential outlier detected at time 48 with H=0.010667111715486855, L=0.010667111715486855and l=1
-    ## Upper parametric change detected at time 61 with H=371.5075065279889, L=0.8665659319590896 and l=3
-    ## Lower parametric change detected at time 69 with H=73.48957980292538, L=21.11336373558922 and l=3
-    ## Upper parametric change detected at time 73 with H=1017.8894222937022, L=5.103069050925839 and l=3
-    ## Lower potential outlier detected at time 77 with H=0.0004773719349100128, L=0.0004773719349100128and l=1
-    ## Lower potential outlier detected at time 79 with H=8.290756920919369e-05, L=8.290756920919369e-05and l=1
-    ## Upper potential outlier detected at time 84 with H=0.05878813134403288, L=0.05878813134403288and l=1
-    ## Upper potential outlier detected at time 95 with H=0.06892996628785275, L=0.06892996628785275and l=1
-    ## Upper potential outlier detected at time 108 with H=0.07266554972703385, L=0.07266554972703385and l=1
-    ## Lower potential outlier detected at time 115 with H=0.00012539263264369665, L=0.00012539263264369665and l=1
-    ## Lower parametric change detected at time 121 with H=9.817545249668383, L=9.817545249668383 and l=3
-    ## Upper potential outlier detected at time 132 with H=0.028683109480204753, L=0.028683109480204753and l=1
-    ## Upper parametric change detected at time 137 with H=1.3781426241191645, L=0.014890903913373155 and l=3
-    ## Lower potential outlier detected at time 138 with H=0.009474041226003621, L=0.009474041226003621and l=1
-    ## Lower potential outlier detected at time 140 with H=0.028300819384206272, L=0.028300819384206272and l=1
-    ## Lower potential outlier detected at time 141 with H=0.0015973993973896503, L=0.0015973993973896503and l=1
-    ## Upper potential outlier detected at time 144 with H=0.11437026489167935, L=0.11437026489167935and l=1
-    ## Lower potential outlier detected at time 146 with H=9.965912212293438e-06, L=9.965912212293438e-06and l=1
-    ## Lower potential outlier detected at time 147 with H=1.3965093239872577e-08, L=1.3965093239872577e-08and l=1
+    ## Upper potential outlier detected at time 24 with H=6.1828e-03, L=6.1828e-03 and l=1
+    ## Upper potential outlier detected at time 36 with H=4.6950e-02, L=4.6950e-02 and l=1
+    ## Upper potential outlier detected at time 48 with H=1.0667e-02, L=1.0667e-02 and l=1
+    ## Upper parametric change detected at time 61 with H=3.7151e+02, L=8.6657e-01 and l=3
+    ## Lower parametric change detected at time 69 with H=7.3490e+01, L=2.1113e+01 and l=3
+    ## Upper parametric change detected at time 73 with H=1.0179e+03, L=5.1031e+00 and l=3
+    ## Lower potential outlier detected at time 77 with H=4.7737e-04, L=4.7737e-04 and l=1
+    ## Lower potential outlier detected at time 79 with H=8.2908e-05, L=8.2908e-05 and l=1
+    ## Upper potential outlier detected at time 84 with H=5.8788e-02, L=5.8788e-02 and l=1
+    ## Upper potential outlier detected at time 95 with H=6.8930e-02, L=6.8930e-02 and l=1
+    ## Upper potential outlier detected at time 108 with H=7.2666e-02, L=7.2666e-02 and l=1
+    ## Lower potential outlier detected at time 115 with H=1.2539e-04, L=1.2539e-04 and l=1
+    ## Lower parametric change detected at time 121 with H=9.8175e+00, L=9.8175e+00 and l=3
+    ## Upper potential outlier detected at time 132 with H=2.8683e-02, L=2.8683e-02 and l=1
+    ## Upper parametric change detected at time 137 with H=1.3781e+00, L=1.4891e-02 and l=3
+    ## Lower potential outlier detected at time 138 with H=9.4740e-03, L=9.4740e-03 and l=1
+    ## Lower potential outlier detected at time 140 with H=2.8301e-02, L=2.8301e-02 and l=1
+    ## Lower potential outlier detected at time 141 with H=1.5974e-03, L=1.5974e-03 and l=1
+    ## Upper potential outlier detected at time 144 with H=1.1437e-01, L=1.1437e-01 and l=1
+    ## Lower potential outlier detected at time 146 with H=9.9659e-06, L=9.9659e-06 and l=1
+    ## Lower potential outlier detected at time 147 with H=1.3965e-08, L=1.3965e-08 and l=1
 
 ``` python
 >>> dict_filter = fit_monitor.get("filter")
@@ -159,7 +159,7 @@ each class.
 >>> ]
 >>> 
 >>> # Fitting with the interventions
->>> manual_interventions = ManualIntervention(mod=mod)
+>>> manual_interventions = Intervention(mod=mod)
 >>> out_int = manual_interventions.fit(
 >>>     y=cp6["sales"], interventions=list_interventions)
 >>> dict_smooth = out_int.get("smooth")
@@ -187,7 +187,7 @@ each class.
 >>>          linestyle="dashed")
 >>> plt.grid(linestyle="dotted")
 >>> plt.xlabel("Time")
->>> plt.ylabel("Average daily calls")
+>>> plt.ylabel("Monthly total sales")
 >>> plt.show()
 ```
 
@@ -199,9 +199,9 @@ each class.
 Menezes](https://andrmenezes.github.io/) and [Eduardo
 Gabriel](https://www.linkedin.com/in/eduardo-gabriel-433332142/) while
 working as Data Scientist at [Murabei Data
-Science](https://www.murabei.com/) advised by [André
-Baceti](https://br.linkedin.com/in/andre-baceti/pt) and professor [Hélio
-Migon](http://lattes.cnpq.br/7997248190492823).
+Science](https://www.murabei.com/) advised by professor [Hélio
+Migon](http://lattes.cnpq.br/7997248190492823) and [André
+Baceti](https://br.linkedin.com/in/andre-baceti/pt) .
 
 ## License
 
