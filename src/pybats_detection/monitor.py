@@ -1,5 +1,6 @@
-"""Automatic Monitoring for Dynamic Linear Models."""
+"""Monitoring in Bayesian Dynamic Linear Models."""
 import copy
+import pybats
 import numpy as np
 import pandas as pd
 from typing import List
@@ -8,15 +9,16 @@ from pybats_detection.smooth import Smoothing
 from pybats_detection.utils import tidy_posterior_parms
 
 
-class AutomaticMonitoring:
-    """Automatic Monitoring Analysis.
+class Monitoring:
+    """Bayesian Monitoring analysis.
 
     Perform automatic monitoring analysis on Dynamic Linear Models from objects
     of class `pybats.dglm.dlm`.
     """
 
-    def __init__(self, mod, prior_length=10, bilateral=False,
-                 smooth=True, interval=True, level=0.05):
+    def __init__(self, mod: pybats.dglm.dlm, prior_length: int = 10,
+                 bilateral: bool = False, smooth: bool = True,
+                 interval: bool = True, level: float = 0.05):
         """Automatic Monitoring Analysis.
 
         Perform automatic monitoring analysis on Dynamic Linear Models from
@@ -36,7 +38,7 @@ class AutomaticMonitoring:
             Should compute the smoothing moments?
         interval : bool
             Should credibile interval be calculated?
-        level : double
+        level : float
             A number between 0 and 1 indicating the probability level of the
             credible interval.
 
@@ -68,7 +70,7 @@ class AutomaticMonitoring:
 
     def fit(self, y: pd.Series, h: int = 4, tau: float = 0.135,
             change_var: List = [5], distr: str = "normal",
-            type: str = "location"):
+            type: str = "location", verbose: bool = True):
         """Perform the fit with automatic monitoring.
 
         Filtering and smoothing distribution with automatic monitoring on
@@ -102,10 +104,14 @@ class AutomaticMonitoring:
             It could be "location" to detects change in the location of the
             distribution or "scale" to dectecs changes in the scale/dispersion
             of the predictive distribution.
+        verbose : bool
+            If `True` displays the detection.
 
         Returns
         -------
         dict. It contains the following entries:
+            - `model`: the updated pybats.dglm.dlm object.
+
             - `filter`: a dictionary with:
                 - `posterior`: pd.DataFrame with the filtering posterior
                 moments.
@@ -129,6 +135,7 @@ class AutomaticMonitoring:
 
         """
         self._pd_y = y.copy()
+        self._verbose = verbose
 
         # Constructing a matrix for multiply the prior covariance matrix R
         n_parms = len(self._mod.get_coef())
@@ -244,10 +251,10 @@ class AutomaticMonitoring:
             # Check structural change in parameters
             if (Ht >= tau) & ((Lt < tau) | (lt > 2)):
                 dict_predictive["what_detected"][t] = "parametric_change"
-                msg = ("Parametric change detected at time {t} with H={Ht}, "
-                       "L={Lt} and l={lt}")
-                print(msg.format(
-                    t=t+1, Ht=round(Ht, 4), lt=lt, Lt=round(Lt, 4)))
+                if self._verbose:
+                    msg = ("Parametric change detected at time {t} with "
+                           "H={Ht:.4e}, L={Lt:.4e} and l={lt}")
+                    print(msg.format(t=t+1, Ht=Ht, lt=lt, Lt=Lt))
                 # Change prior variance and get back in time (t - lt + 1)
                 index = t - lt + 1
                 mod = copy.deepcopy(lt_model_history[index])
@@ -268,10 +275,10 @@ class AutomaticMonitoring:
             potential_outlier = False
             if ((Lt < tau) & (lt == 1)):
                 dict_predictive["what_detected"][t] = "outlier"
-                msg = ("Potential outlier detected at time {t} with H={Ht}, "
-                       "L={Lt} and l={lt}")
-                print(
-                    msg.format(t=t+1, Ht=round(Ht, 4), lt=lt, Lt=round(Lt, 4)))
+                if self._verbose:
+                    msg = ("Potential outlier detected at time {t} with "
+                           "H={Ht:.4e}, L={Lt:.4e} and l={lt}")
+                    print(msg.format(t=t+1, Ht=Ht, lt=lt, Lt=Lt))
                 yt = None
                 Lt = 1
                 lt = 0
@@ -344,8 +351,8 @@ class AutomaticMonitoring:
                 y=pd_y, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
-        out["model"] = mod 
-           
+        out["model"] = mod
+
         return out
 
     def _fit_bilateral(self, h, tau, c_mat, distr, type):
@@ -454,11 +461,10 @@ class AutomaticMonitoring:
                 side = "Upper" if arg == 0 else "Lower"
                 dict_predictive["what_detected"][t] = (
                     side + "_parametric_change")
-                msg = (side + " parametric change detected at time {t} with "
-                       "H={Ht}, L={Lt} and l={lt}")
-                print(msg.format(
-                    t=t+1, Ht=round(min_Ht, 4), lt=max_lt,
-                    Lt=round(min_Lt, 4)))
+                if self._verbose:
+                    msg = (side + " parametric change detected at time {t} "
+                           "with H={Ht:.4e}, L={Lt:.4e} and l={lt}")
+                    print(msg.format(t=t+1, Ht=min_Ht, lt=max_lt, Lt=min_Lt))
                 # Change prior variance and get back in time (t - lt + 1)
                 index = t - max_lt + 1
                 mod = copy.deepcopy(lt_model_history[index])
@@ -481,11 +487,10 @@ class AutomaticMonitoring:
                 arg = np.argmin(Lt)
                 side = "Upper" if arg == 0 else "Lower"
                 dict_predictive["what_detected"][t] = side + "_outlier"
-                msg = (side + " potential outlier detected at time {t} with "
-                       "H={Ht}, L={Lt} and l={lt}")
-                print(msg.format(
-                    t=t+1, Ht=round(min_Ht, 4), lt=max_lt,
-                    Lt=round(min_Lt, 4)))
+                if self._verbose:
+                    msg = (side + " potential outlier detected at time {t} "
+                           "with H={Ht:.4e}, L={Lt:.4e} and l={lt}")
+                    print(msg.format(t=t+1, Ht=min_Ht, lt=max_lt, Lt=min_Lt))
                 yt = None
                 Lt[arg] = 1
                 lt[arg] = 0
@@ -561,8 +566,8 @@ class AutomaticMonitoring:
                 y=pd_y, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
-        out["model"] = mod    
-            
+        out["model"] = mod
+
         return out
 
     def _bayes_factor(self, type, distr):

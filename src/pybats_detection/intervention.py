@@ -1,5 +1,6 @@
-"""Manual intervention in Bayesian Dynamic Linear Models."""
+"""Intervention analysis in Bayesian Dynamic Linear Models."""
 import copy
+import pybats
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -8,14 +9,15 @@ from pybats_detection.smooth import Smoothing
 from pybats_detection.utils import tidy_posterior_parms
 
 
-class ManualIntervention:
-    """Manual intervention analysis.
+class Intervention:
+    """Bayesian Intervention analysis.
 
     Perform intervention analysis on Dynamic Linear Models from objects of
     class `pybats.dglm.dlm`.
     """
 
-    def __init__(self, mod, smooth=True, interval=True, level=0.05):
+    def __init__(self, mod: pybats.dglm.dlm, smooth: bool = True,
+                 interval: bool = True, level: float = 0.05):
         """Manual intervention analysis.
 
         Perform intervention analysis on Dynamic Linear Models from objects of
@@ -29,7 +31,7 @@ class ManualIntervention:
             Should compute the smoothing moments?
         interval : bool
             Should credibile interval be calculated?
-        level : double
+        level : float
             A number between 0 and 1 indicating the probability level of the
             credible interval.
 
@@ -78,14 +80,16 @@ class ManualIntervention:
 
                 For `subjective` type the parameters are `R_star`
 
-                The between `noise` and `subjective`, is that the noise
-                increase/decrease the mean or variance of the state parameters,
-                while the `subjective` change the prior mean vector and
-                variance matrix from those one of `a_star` and `R_star`.
+                The difference between `noise` and `subjective`, is that the
+                noise increase/decrease the mean or variance of the state
+                parameters, while the `subjective` change the prior mean vector
+                and variance matrix from those one of `a_star` and `R_star`.
 
         Returns
         -------
         dict. It contains the following entries:
+            - `model`: the updated pybats.dglm.dlm object.
+
             - `filter`: a dictionary with:
                 - `posterior`: pd.DataFrame with the filtering posterior
                 moments.
@@ -204,6 +208,8 @@ class ManualIntervention:
             dict_smooth = smooth_class.fit(
                 y=y, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
+
+        out["model"] = self._mod
 
         return out
 

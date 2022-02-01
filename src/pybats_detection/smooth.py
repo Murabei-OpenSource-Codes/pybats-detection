@@ -1,5 +1,6 @@
 """Smoothing for Dynamic Linear Models."""
 import copy
+import pybats
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -14,7 +15,8 @@ class Smoothing:
     Procedure is done using objects of class `pybats.dglm.dlm`.
     """
 
-    def __init__(self, mod, interval=True, level=0.05):
+    def __init__(self, mod: pybats.dglm.dlm, interval: bool = True,
+                 level: float = 0.05):
         """Retrospective time series analysis.
 
         Perform retrospective estimation of the historical development of a
@@ -27,7 +29,7 @@ class Smoothing:
             An object of class `pybats.dglm.dlm` with the DLM updated.
         interval : bool
             Indicate if the credible interval was calculated.
-        level : double
+        level : float
             The probability level used to compute the credible interval.
 
         Attributes
@@ -36,7 +38,7 @@ class Smoothing:
             An object of class `pybats.dglm.dlm` with the DLM updated.
         _interval : bool
             Indicate if the credible interval was calculated.
-        _level : double
+        _level : float
             The probability level used to compute the credible interval.
 
         """
@@ -58,8 +60,9 @@ class Smoothing:
         y : pd.Series
             Observed values of time series.
         dict_state_parms : dict
-            dictionary with the posterior (m and C) and prior (a and R) moments
-            for the state space parameters along time.
+            A dictionary with the posterior (m and C) and prior (a and R)
+            moments for the state space parameters along time. If `None`,
+            perform the forward filtering first, then the backward smoother.
 
         Returns
         -------
@@ -75,6 +78,7 @@ class Smoothing:
                 moments.
                 - `predictive`: pd.DataFrame with the one-step ahead predictive
                 moments.
+            - `model`: the updated pybats.dglm.dlm object.
 
         References
         ----------
@@ -95,6 +99,7 @@ class Smoothing:
             tmp_ff = self._forward_filter()
             tmp_bs = self._backward_smoother(dict_state_parms=tmp_ff[2])
             out = {
+                "model": tmp_ff[3],
                 "filter": {"predictive": tmp_ff[0], "posterior": tmp_ff[1]},
                 "smooth": {"predictive": tmp_bs[0], "posterior": tmp_bs[1]}}
 
@@ -196,7 +201,7 @@ class Smoothing:
                 scale=np.sqrt(df_posterior["variance"].values))
 
         self._dict_predictive = dict_predictive
-        return df_predictive, df_posterior, dict_state_parms
+        return df_predictive, df_posterior, dict_state_parms, c_mod
 
     def _backward_smoother(self, dict_state_parms: dict, k=1):
         """Perform backward smoother.

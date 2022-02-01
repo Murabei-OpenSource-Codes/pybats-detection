@@ -1,13 +1,13 @@
-"""Unittest for ManualIntervention class."""
+"""Unittest for Intervention class."""
 import unittest
 import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
-from pybats_detection.intervention import ManualIntervention
+from pybats_detection.intervention import Intervention
 
 
-class TestManualIntervention(unittest.TestCase):
-    """Tests ManualIntervention."""
+class TestIntervention(unittest.TestCase):
+    """Tests Intervention."""
 
     def test__variance_intervention(self):
         """Test variance intervention, shifting in observation variance."""
@@ -37,16 +37,17 @@ class TestManualIntervention(unittest.TestCase):
         ]
 
         # Perform the filter and smooth with manual interventions
-        dlm_intervention = ManualIntervention(mod=mod)
+        dlm_intervention = Intervention(mod=mod)
         out = dlm_intervention.fit(
             y=df_simulated["y"], interventions=list_interventions)
-        self.assertEqual(list(out.keys()), ["filter", "smooth"])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
         self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))
 
-        dlm_intervention = ManualIntervention(mod=mod, smooth=False)
+        dlm_intervention = Intervention(mod=mod, smooth=False)
         out = dlm_intervention.fit(
             y=df_simulated["y"], interventions=list_interventions)
-        self.assertEqual(list(out.keys()), ["predictive", "posterior"])
+        self.assertEqual(list(out.keys()),
+                         ["predictive", "posterior", "model"])
 
     def test__noise_intervention(self):
         """Test noise intervention, shifting the prior moments."""
@@ -74,10 +75,10 @@ class TestManualIntervention(unittest.TestCase):
              }]
 
         # Perform the filter and smooth with manual interventions
-        dlm_intervention = ManualIntervention(mod=mod)
+        dlm_intervention = Intervention(mod=mod)
         out = dlm_intervention.fit(
             y=df_simulated["y"], interventions=list_interventions)
-        self.assertEqual(list(out.keys()), ["filter", "smooth"])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
         self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))
 
     def test__subjective_intervention(self):
@@ -106,8 +107,8 @@ class TestManualIntervention(unittest.TestCase):
         }
         ]
 
-        dlm_intervention = ManualIntervention(mod=mod)
+        dlm_intervention = Intervention(mod=mod)
         out = dlm_intervention.fit(
             y=df_simulated["y"], interventions=list_interventions)
-        self.assertEqual(list(out.keys()), ["filter", "smooth"])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
         self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))

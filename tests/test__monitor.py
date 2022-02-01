@@ -1,13 +1,13 @@
-"""Unittest for AutomaticMonitoring class."""
+"""Unittest for Monitoring class."""
 import unittest
 import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
-from pybats_detection.monitor import AutomaticMonitoring
+from pybats_detection.monitor import Monitoring
 
 
-class TestAutomaticMonitoring(unittest.TestCase):
-    """Test AutomaticMonitoring."""
+class TestMonitoring(unittest.TestCase):
+    """Test Monitoring."""
 
     def test__unilateral_level(self):
         """Test unilateral level model with automatic monitor."""
@@ -27,9 +27,9 @@ class TestAutomaticMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+        monitor = Monitoring(mod=mod, bilateral=False)
         out = monitor.fit(y=df_simulated["y"])
-        self.assertEqual(list(out.keys()), ["filter", "smooth"])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__bilateral_level(self):
         """Test bilateral level model with automatic monitor."""
@@ -48,9 +48,9 @@ class TestAutomaticMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+        monitor = Monitoring(mod=mod, bilateral=False)
         out = monitor.fit(y=df_simulated["y"])
-        self.assertEqual(list(out.keys()), ["filter", "smooth"])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__variance_positive_unilateral(self):
         """Test if the variances are positive with unilateral monitor."""
@@ -72,7 +72,7 @@ class TestAutomaticMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+            monitor = Monitoring(mod=mod, bilateral=False)
             out = monitor.fit(y=df_simulated["y"])
             predictive_smooth = out.get('smooth')
 
@@ -104,7 +104,7 @@ class TestAutomaticMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = AutomaticMonitoring(mod=mod, bilateral=True)
+            monitor = Monitoring(mod=mod, bilateral=True)
             out = monitor.fit(y=df_simulated["y"])
             predictive_smooth = out.get('smooth')
 
