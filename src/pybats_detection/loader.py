@@ -28,3 +28,15 @@ def load_telephone_calls():
     tmp = pd.read_csv(data_dir + 'telephone_calls__pankratz.csv')
     tmp["time"] = pd.to_datetime(tmp["time"])
     return tmp
+
+
+def load_air_passengers():
+    """
+    Load AirPassengers time series.
+
+    Monthly totals of international airline passengers, 1949 to 1960.
+    """
+    data_dir = os.path.dirname(os.path.abspath(__file__)) + '/data/'
+    tmp = pd.read_csv(data_dir + 'air_passengers.csv')
+    tmp["time"] = pd.to_datetime(tmp["time"])
+    return tmp

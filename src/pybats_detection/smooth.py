@@ -4,7 +4,7 @@ import pybats
 import numpy as np
 import pandas as pd
 from scipy import stats
-from pybats_detection.utils import tidy_posterior_parms
+from pybats_detection.utils import tidy_parameters
 
 
 class Smoothing:
@@ -173,9 +173,12 @@ class Smoothing:
         df_predictive = pd.DataFrame(dict_predictive)
 
         # Organize the posterior parameters in DataFrame
-        df_posterior = tidy_posterior_parms(
-            dict_posterior_parms=dict_state_parms["posterior"],
-            entry_m="m", entry_v="C")
+        df_posterior = tidy_parameters(
+            dict_parameters=dict_state_parms["posterior"],
+            entry_m="m", entry_v="C",
+            names_parameters=list(c_mod.get_coef().index),
+            index_seas_parameters=c_mod.iseas,
+            F=c_mod.F)
         n_parms = len(df_posterior["parameter"].unique())
         t_index = np.arange(0, len(df_posterior) / n_parms) + 1
         df_posterior["t"] = np.repeat(t_index, n_parms)
@@ -266,8 +269,12 @@ class Smoothing:
             dict_smooth_parms["t"].append(T_end-k)
 
         # Organize the posterior smooth parameters in pd.DataFrame
-        df_posterior_smooth = tidy_posterior_parms(
-            dict_posterior_parms=dict_smooth_parms, entry_m="ak", entry_v="Rk")
+        df_posterior_smooth = tidy_parameters(
+            dict_parameters=dict_smooth_parms,
+            entry_m="ak", entry_v="Rk",
+            names_parameters=list(self._mod.get_coef().index),
+            index_seas_parameters=self._mod.iseas,
+            F=self._mod.F)
         n_parms = len(df_posterior_smooth["parameter"].unique())
         df_posterior_smooth.reset_index(inplace=True)
         df_posterior_smooth = df_posterior_smooth.sort_values(

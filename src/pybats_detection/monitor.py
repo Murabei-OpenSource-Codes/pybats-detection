@@ -6,7 +6,7 @@ import pandas as pd
 from typing import List
 from scipy import stats
 from pybats_detection.smooth import Smoothing
-from pybats_detection.utils import tidy_posterior_parms
+from pybats_detection.utils import tidy_parameters
 
 
 class Monitoring:
@@ -312,9 +312,12 @@ class Monitoring:
             dict_predictive["l"].append(lt)
             # end loop
 
-        df_posterior = tidy_posterior_parms(
-            dict_posterior_parms=dict_state_parms["posterior"],
-            entry_m="m", entry_v="C")
+        df_posterior = tidy_parameters(
+            dict_parameters=dict_state_parms["posterior"],
+            entry_m="m", entry_v="C",
+            names_parameters=list(mod.get_coef().index),
+            index_seas_parameters=mod.iseas,
+            F=mod.F)
         n_parms = len(df_posterior["parameter"].unique())
         t_index = np.arange(0, len(df_posterior) / n_parms) + 1
         df_posterior["t"] = np.repeat(t_index, n_parms)
@@ -527,9 +530,12 @@ class Monitoring:
             dict_predictive["l_lower"].append(lt[1])
             # end loop
 
-        df_posterior = tidy_posterior_parms(
-            dict_posterior_parms=dict_state_parms["posterior"],
-            entry_m="m", entry_v="C")
+        df_posterior = tidy_parameters(
+            dict_parameters=dict_state_parms["posterior"],
+            entry_m="m", entry_v="C",
+            names_parameters=list(mod.get_coef().index),
+            index_seas_parameters=mod.iseas,
+            F=mod.F)
         n_parms = len(df_posterior["parameter"].unique())
         t_index = np.arange(0, len(df_posterior) / n_parms) + 1
         df_posterior["t"] = np.repeat(t_index, n_parms)
