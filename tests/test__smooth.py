@@ -2,8 +2,9 @@
 import unittest
 import numpy as np
 from pybats.dglm import dlm
-from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.smooth import Smoothing
+from pybats_detection.loader import load_air_passengers
+from pybats_detection.random_dlm import RandomDLM
 
 # Generating level data model
 np.random.seed(66)
@@ -18,7 +19,7 @@ y = df_simulated["y"]
 # Define model (prior mean and variance matrix)
 a = np.array([100, 0])
 R = np.eye(2)
-np.fill_diagonal(R, val=1)
+np.fill_diagonal(R, val=100)
 
 
 class TestSmoothing(unittest.TestCase):
@@ -80,3 +81,16 @@ class TestSmoothing(unittest.TestCase):
             sum_qk = predictive_smooth['qk'].sum()
 
         self.assertTrue(all(sum_qk_cond), True)
+
+    def test__air_passengers(self):
+        """Test the smooth on air_passengers data."""
+        air_passengers = load_air_passengers()
+        a = np.array([112, 0, 0, 0, 0, 0])
+        R = np.eye(6)
+        np.fill_diagonal(R, val=100)
+        mod = dlm(a, R, ntrend=2, deltrend=0.95, delseas=0.98,
+                  seasPeriods=[12], seasHarmComponents=[[1, 2]])
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=air_passengers["total"])
+        data_posterior = dict_results.get("smooth").get("posterior")
+        self.assertTrue((data_posterior["parameter"] == "Sum Seas 1").any())
