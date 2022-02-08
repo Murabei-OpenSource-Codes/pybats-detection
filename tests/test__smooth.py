@@ -92,5 +92,5 @@ class TestSmoothing(unittest.TestCase):
                   seasPeriods=[12], seasHarmComponents=[[1, 2]])
         smooth = Smoothing(mod=mod)
         dict_results = smooth.fit(y=air_passengers["total"])
-        data_posterior = dict_results.get("smooth").get("posterior")
+        data_posterior = dict_results.get("filter").get("posterior")
         self.assertTrue((data_posterior["parameter"] == "Sum Seas 1").any())

@@ -15,5 +15,6 @@ src/pybats_detection.egg-info/PKG-INFO
 src/pybats_detection.egg-info/SOURCES.txt
 src/pybats_detection.egg-info/dependency_links.txt
 src/pybats_detection.egg-info/top_level.txt
+src/pybats_detection/data/air_passengers.csv
 src/pybats_detection/data/cp6__west_harrison.csv
 src/pybats_detection/data/telephone_calls__pankratz.csv
