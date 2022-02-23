@@ -1,0 +1,230 @@
+---
+title: "Manual Intervention"
+author: "André Menezes"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+# Manual Intervention
+
+## CP6
+
+```{python load-cp6, echo=FALSE}
+cp6 = load_cp6()
+```
+
+```{r plot-cp6, echo=FALSE}
+df_cp6 <- py$cp6 %>% 
+  mutate(time = as.Date(time))
+p_cp6 <- ggplot(df_cp6, aes(x = time, y = sales)) +
+  geom_point(size = 3) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  labs(x = "Month/Year", y = "Sales")
+p_cp6
+```
+
+`pybats-detection` uses the `pybats.dglm.dlm` objects from [`PyBATS`](https://github.com/lavinei/pybats)
+package to perform the intervention analysis. 
+
+To initialize a Bayesian Dynamic Linear Model specified from `pybats.dglm.dlm`
+object the following information is required:
+
+1. Model specification: the model components, such as level, growth, seasonality,
+and regressors. For this data the model contains a level and growth, since `ntrend=2`;
+
+2. Prior moments: prior vector mean and covariance matrix for model components,
+which is defined by `a` and `R`, respectively;
+
+3. Discount factor for model components: defined by the argument
+`deltrend=[0.90, 0.98]`, which means a discount factor of $0.90$ for level and
+$0.98$ for growth.
+
+- Performing the fit (filter and smoothing) without interventions.
+
+```{python cp6-fit-without-intervention}
+# Define the growth model
+a = np.array([600, 1])
+R = np.array([[100, 0], [0, 25]])
+mod = dlm(a, R, ntrend=2, deltrend=[0.90, 0.98])
+
+# Filter and Smooth without intervention
+smooth = Smoothing(mod=mod)
+out_no_int = smooth.fit(y=cp6["sales"])
+dict_filter_no_int = out_no_int.get("filter")
+dict_smooth_no_int = out_no_int.get("smooth")
+```
+
+
+- Performing the fit (filter and smoothing) with interventions
+
+```{python cp6-fit-with-intervention}
+list_interventions = [
+    {"time_index": 12, "which": ["variance", "noise"],
+     "parameters": [{"v_shift": "ignore"},
+                    {"h_shift": np.array([0, 0]),
+                     "H_shift": np.array([[1000, 25], [25, 25]])}]
+     },
+    {"time_index": 25, "which": ["noise", "variance"],
+     "parameters": [{"h_shift": np.array([80, 0]),
+                     "H_shift": np.array([[100, 0], [0, 0]])},
+                    {"v_shift": "ignore"}]},
+    {"time_index": 37, "which": ["subjective"],
+     "parameters": [{"a_star": np.array([970, 0]),
+                     "R_star": np.array([[50, 0], [0, 5]])}]}
+]
+manual_interventions = ManualIntervention(mod=mod)
+out_int = manual_interventions.fit(
+    y=cp6["sales"], interventions=list_interventions)
+dict_filter_int = out_int.get("filter")
+dict_smooth_int = out_int.get("smooth")
+```
+
+- Organizing the data into two data.frame: `data_predictive` and `data_posterior`.
+
+```{python organize-predictive-data}
+# Filter
+data_predictive_filter_int = dict_filter_int.get("predictive").copy()
+data_predictive_filter_no_int = dict_filter_no_int.get("predictive").copy()
+data_predictive_filter_no_int["intervention_type"] = "nothing"
+data_predictive_filter_int["intervention_fit"] = True
+data_predictive_filter_no_int["intervention_fit"] = False
+cols = data_predictive_filter_int.columns
+data_predictive_filter = pd.concat(
+  [data_predictive_filter_int, data_predictive_filter_no_int[cols]]
+)
+# Smooth
+data_predictive_smooth_int = dict_smooth_int.get("predictive").copy()
+data_predictive_smooth_no_int = dict_smooth_no_int.get("predictive").copy()
+data_predictive_smooth_no_int["intervention_type"] = "nothing"
+data_predictive_smooth_int["intervention_fit"] = True
+data_predictive_smooth_no_int["intervention_fit"] = False
+cols = data_predictive_smooth_int.columns
+data_predictive_smooth = pd.concat(
+  [data_predictive_smooth_int, data_predictive_smooth_no_int[cols]]
+)
+# Append data
+data_predictive_smooth["type"] = "smooth"
+data_predictive_filter["type"] = "filter"
+data_predictive_smooth.rename(columns={"fk": "f", "qk": "q"}, inplace=True)
+cols_ord = ["t", "intervention_fit", "type", "f", "q", 'ci_lower', 'ci_upper']
+data_predictive = pd.concat(
+    [data_predictive_filter[cols_ord], data_predictive_smooth[cols_ord]])
+data_predictive = data_predictive.join(cp6)
+```
+
+
+```{python organize-posterior-data}
+# Filter
+data_posterior_filter_int = dict_filter_int.get("posterior").copy()
+data_posterior_filter_no_int = dict_filter_no_int.get("posterior").copy()
+data_posterior_filter_no_int["intervention_type"] = "nothing"
+data_posterior_filter_int["intervention_fit"] = True
+data_posterior_filter_no_int["intervention_fit"] = False
+cols = data_posterior_filter_int.columns
+data_posterior_filter = pd.concat(
+  [data_posterior_filter_int, data_posterior_filter_no_int[cols]]
+)
+# Smooth
+data_posterior_smooth_int = dict_smooth_int.get("posterior").copy()
+data_posterior_smooth_no_int = dict_smooth_no_int.get("posterior").copy()
+data_posterior_smooth_no_int["intervention_type"] = "nothing"
+data_posterior_smooth_int["intervention_fit"] = True
+data_posterior_smooth_no_int["intervention_fit"] = False
+cols = data_posterior_smooth_int.columns
+data_posterior_smooth = pd.concat(
+  [data_posterior_smooth_int, data_posterior_smooth_no_int[cols]]
+)
+# Append data
+data_posterior_smooth["type"] = "smooth"
+data_posterior_filter["type"] = "filter"
+data_posterior_filter.set_index(data_posterior_filter["t"].values-1, inplace=True)
+data_posterior_smooth.set_index(data_posterior_smooth["t"].values-1, inplace=True)
+
+cols_ord = ["t", "intervention_fit", "type", "parameter", "mean", "variance",
+            'ci_lower', 'ci_upper']
+data_posterior = pd.concat(
+    [data_posterior_filter[cols_ord], data_posterior_smooth[cols_ord]])
+data_posterior = data_posterior.join(cp6)    
+```
+
+
+- Plotting some results
+
+```{r plot-fit-cp6, echo=FALSE}
+data_predictive <- py$data_predictive %>% 
+  mutate(time = as.Date(time))
+data_posterior <- py$data_posterior %>% 
+  mutate(time = as.Date(time))
+
+data_predictive |> 
+  filter(type == "filter") |> 
+  ggplot(aes(x = time, y = sales)) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f, col = intervention_fit), size = 0.8) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  colorspace::scale_color_discrete_divergingx()
+
+data_predictive |> 
+  filter(type == "filter") |>
+  ggplot(aes(x = time, y = sales)) +
+  facet_wrap(~intervention_fit, ncol = 2) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f), col = blue, size = 1.2) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y")
+
+data_predictive |> 
+  filter(type == "smooth") |> 
+  ggplot(aes(x = time, y = sales)) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f, col = intervention_fit), size = 0.8) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  colorspace::scale_color_discrete_divergingx()
+
+data_predictive |> 
+  filter(type == "smooth") |>
+  ggplot(aes(x = time, y = sales)) +
+  facet_wrap(~intervention_fit, ncol = 2) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f), col = blue, size = 1.2) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  ggtitle("Smooth predictive with and without intervention")
+
+data_posterior |> 
+  filter(type == "smooth", parameter == "theta_1") |>
+  ggplot(aes(x = time, y = sales)) +
+  facet_wrap(~intervention_fit, ncol = 2) +
+  geom_point(size = 3) +
+  geom_line(aes(y = mean), col = blue, size = 1.2) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  ggtitle("Smooth level with and without intervention")
+
+data_posterior |> 
+  filter(type == "smooth", parameter == "theta_2") |>
+  ggplot(aes(x = time, y = mean)) +
+  facet_wrap(~intervention_fit, ncol = 2) +
+  geom_line(col = blue, size = 1.2) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  ggtitle("Smooth growth with and without intervention")
+
+data_posterior |> 
+  filter(type == "filter", parameter == "theta_2") |>
+  ggplot(aes(x = time, y = mean)) +
+  facet_wrap(~intervention_fit, ncol = 2) +
+  geom_line(col = blue, size = 1.2) +
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  ggtitle("Filter growth with and without intervention")
+```

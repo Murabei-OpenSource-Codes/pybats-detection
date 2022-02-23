@@ -1,0 +1,55 @@
+---
+title: "`pybats-detection`: A python package for outlier and structural changes detection in time series analysis"
+author: "André Menezes and Eduardo Gabriel"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, include=FALSE}
+options(digits = 4, prompt = ">>> ", continue = ">>> ", width = 70,
+        useFancyQuotes = FALSE)
+library(reticulate)
+use_virtualenv(virtualenv = "pybats_detection",required = TRUE)
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  dev = "pdf", fig.align = "center", fig.width = 10,
+  fig.height = 8, prompt = TRUE, tidy = TRUE)
+```
+
+```{r pkgs, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(knitr)
+
+theme_set(
+  theme_cowplot(font_size = 14, font_family = "Palatino") +
+    background_grid() +
+    theme(text = element_text(size = 14, family = "Palatino"),
+          legend.position = "top")
+)
+blue <- rgb(32, 114, 184, maxColorValue = 255)
+red <- rgb(237,0,0, maxColorValue = 255)
+```
+
+```{python pkgs-py, include=FALSE}
+import numpy as np
+import pandas as pd
+from scipy import stats
+from pybats.dglm import dlm
+from pybats_detection.loader import load_cp6
+from pybats_detection.loader import load_telephone_calls
+from pybats_detection.smooth import Smoothing
+from pybats_detection.monitor import AutomaticMonitoring
+from pybats_detection.random_dlm import RandomDLM
+from pybats_detection.intervention import ManualIntervention
+np.set_printoptions(precision=4)
+```
+
+```{r smooth, child = "01__smooth.Rmd"}
+```
+
+```{r intervention, child = "02__manual_intervention.Rmd"}
+```
+
+```{r monitor, child = "03__automatic_monitor.Rmd"}
+```
