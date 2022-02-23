@@ -2,7 +2,6 @@ Metadata-Version: 2.1
 Name: pybats-detection
 Version: 0.0.1
 Summary: Tools for outlier and structural changes detection in time series analysis using Bayesian Dynamic Linear Model.
-Home-page: UNKNOWN
 Author: André Menezes and Eduardo Pinheiro
 Author-email: a.menezes@murabei.com and eduardo.pinheiro@murabei.com
 License: UNKNOWN
