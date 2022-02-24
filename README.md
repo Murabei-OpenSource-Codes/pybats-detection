@@ -1,4 +1,3 @@
-
 ## Welcome to `pybats-detection`
 
 The `pybats-detection` is a `python` package with routines implemented in python for detection of outlier and structural changes in time series using Bayesian Dynamic Linear Models (DLM).

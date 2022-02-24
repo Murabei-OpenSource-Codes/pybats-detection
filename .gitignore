@@ -5,6 +5,10 @@
 *.Rproj
 # *.Rmd
 # *.R
+*.pypirc
+
+# Egg metadata
+*.egg-info
 
 # Node artifact files
 node_modules/
