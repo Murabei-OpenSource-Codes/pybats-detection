@@ -39,9 +39,9 @@ from pybats.dglm import dlm
 from pybats_detection.loader import load_cp6
 from pybats_detection.loader import load_telephone_calls
 from pybats_detection.smooth import Smoothing
-from pybats_detection.monitor import AutomaticMonitoring
+from pybats_detection.monitor import Monitoring
 from pybats_detection.random_dlm import RandomDLM
-from pybats_detection.intervention import ManualIntervention
+from pybats_detection.intervention import Intervention
 np.set_printoptions(precision=4)
 ```
 
