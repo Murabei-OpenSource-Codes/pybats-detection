@@ -42,7 +42,7 @@ df_res = fit_without_monitor.get("filter").get("predictive")
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+monitor = Monitoring(mod=mod, bilateral=False)
 fit_monitor = monitor.fit(y=df_simulated["y"], h=3, tau=0.135, change_var=[100])
 df_tmp = fit_monitor.get("filter").get("predictive")
 df_tmp["monitor"] = True
@@ -97,7 +97,7 @@ df_res = fit_without_monitor.get("filter").get("predictive")
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+monitor = Monitoring(mod=mod, bilateral=False)
 fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
 df_tmp = fit_monitor.get("filter").get("predictive")
 df_tmp["monitor"] = True
@@ -153,7 +153,7 @@ df_res = fit_without_monitor.get("filter").get("predictive")
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+monitor = Monitoring(mod=mod, bilateral=False)
 fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
 df_tmp = fit_monitor.get("filter").get("predictive")
 df_tmp["monitor"] = True
@@ -209,7 +209,7 @@ df_res = fit_without_monitor.get("filter").get("predictive")
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=False)
+monitor = Monitoring(mod=mod, bilateral=False)
 fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
 df_tmp = fit_monitor.get("filter").get("predictive")
 df_tmp["monitor"] = True
@@ -263,7 +263,7 @@ df_res = fit_without_monitor.get("filter").get("predictive")
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=True)
+monitor = Monitoring(mod=mod, bilateral=True)
 fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
 df_tmp = fit_monitor.get("filter").get("predictive")
 df_tmp["monitor"] = True
@@ -320,7 +320,7 @@ df_res["time"] = telephone_calls["time"].values
 df_res["monitor"] = False
 
 # Fit with monitoring
-monitor = AutomaticMonitoring(mod=mod, bilateral=True, prior_length=20)
+monitor = Monitoring(mod=mod, bilateral=True, prior_length=20)
 fit_monitor = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
                           tau=0.135, change_var=[10, 2])
 df_tmp = fit_monitor.get("filter").get("predictive")

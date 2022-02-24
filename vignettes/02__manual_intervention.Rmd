@@ -8,54 +8,175 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 ## CP6
 
-```{python load-cp6, echo=FALSE}
+To illustrate the subjective intervention class we use the CP6 data graphed below. This time series runs from January 1955 to December 1959, providing monthly total sales, in monetary terms on a standard scale, of a product by a major company in UK. Note that the use of standard time series models may not wield satisfactory results as there a some points that need some attention: 
+
+1. During 1955 the market grows fast at a fast but steady rate, 
+2. A jump in December 1955. 
+3. The sales flattens off for 1956.
+4. There is a major jump in the sales level in early 1957.
+5. Another jump in early 1958.
+6. Throughout the final two years, there is a steady decline back to late 1957.
+
+```{python load-cp6}
 cp6 = load_cp6()
 ```
 
-```{r plot-cp6, echo=FALSE}
+```{r plot-cp6, echo=FALSE, fig.cap="CP6 sales series", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
 df_cp6 <- py$cp6 %>% 
   mutate(time = as.Date(time))
 p_cp6 <- ggplot(df_cp6, aes(x = time, y = sales)) +
   geom_point(size = 3) +
   scale_y_continuous(breaks = scales::pretty_breaks(10)) +
   scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  labs(x = "Month/Year", y = "Sales")
+  labs(x = "Month/Year", y = "Sales") + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20))
 p_cp6
 ```
 
-`pybats-detection` uses the `pybats.dglm.dlm` objects from [`PyBATS`](https://github.com/lavinei/pybats)
-package to perform the intervention analysis. 
+## Fit Without Intervention
 
-To initialize a Bayesian Dynamic Linear Model specified from `pybats.dglm.dlm`
-object the following information is required:
+Given this, let's see how a standard dlm performs. The model used is defined below. 
 
-1. Model specification: the model components, such as level, growth, seasonality,
-and regressors. For this data the model contains a level and growth, since `ntrend=2`;
-
-2. Prior moments: prior vector mean and covariance matrix for model components,
-which is defined by `a` and `R`, respectively;
-
-3. Discount factor for model components: defined by the argument
-`deltrend=[0.90, 0.98]`, which means a discount factor of $0.90$ for level and
-$0.98$ for growth.
-
-- Performing the fit (filter and smoothing) without interventions.
-
-```{python cp6-fit-without-intervention}
+```{python cp6-fit-without-intervention-1}
 # Define the growth model
 a = np.array([600, 1])
 R = np.array([[100, 0], [0, 25]])
 mod = dlm(a, R, ntrend=2, deltrend=[0.90, 0.98])
+```
 
+```{python cp6-fit-without-intervention-2}
 # Filter and Smooth without intervention
 smooth = Smoothing(mod=mod)
 out_no_int = smooth.fit(y=cp6["sales"])
-dict_filter_no_int = out_no_int.get("filter")
-dict_smooth_no_int = out_no_int.get("smooth")
+dict_filter_no_int = out_no_int.get("filter").get("predictive")
 ```
 
+```{r plot-fit-cp6-filter-no-intervention, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credibility interval", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+data_predictive = py$dict_filter_no_int 
+data_predictive$time = df_cp6$time
 
-- Performing the fit (filter and smoothing) with interventions
+data_predictive %>%
+  ggplot(aes(x = time, y = y)) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f), size = 0.8) +
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=.25, colour = 'grey40') +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  xlab('Month/Year') + ylab('Sales') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20)) +
+  colorspace::scale_color_discrete_divergingx()
+```
+
+Note that until November 1955 the forecast distribution was quite acceptable, the credibility interval was relatively small and the errors was were distributed around zero and inside the interval. But with the jump in December 1955 the level rises dramatically, the biggest problem is not the model's inability to efficiently predict this point, but the influence it has on future predictions. Note that for most of the year 1956 the predicted sales overestimation the real sales, giving a cluster of negative errors $(y_t - f_t)$. In early 1957 another jump was observed, but in this case, it was accompanied by a regime change. And this has great impact in the amplitude of the credibility intervals. In early 1958 another regime change, followed by a change in grow, that is not properly modeled since from August 1958 to January 1960 all errors were negative with the exception of July 1959. 
+
+## Fit With Intervention
+
+With the intervention class it is possible to consider outside information to define the prior distribution at the time $t$. This can be done in two ways: noise or subjective. Which must be provided in a list of dictionaries containing the time the intervention will be carried out and the type. Lets start with a empty list
+
+```{python intervention-list-1}
+intervention_list = []
+```
+
+### Noise Intervention in Prior Variance
+
+In our example, suppose that a change in growth for the year 1956 was anticipated. An increase in uncertainty about level and growth can be done by the addition of a matrix $H_t$ to $R_t$ at time $t=12$ given by
+
+$$
+  H_t = \begin{bmatrix}
+    100 & 25 \\
+    25 & 25
+  \end{bmatrix}
+$$
+Thus, there is an increase (a positive shift) in the prior variance of the components. In our list of interventions we have
+
+```{python intervention-list-2}
+intervention_list = [{
+  "time_index": 12, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([0, 0]),
+    "H_shift": np.array([[100, 25], [25, 25]])}]
+}]
+```
+
+where
+
+* `time_index`: time of intervention;
+* `which`: type of intervention (in this case, a noise intervention); 
+* `parameters`: the values for the intervention.
+  + `h_shit`: Shift in mean (we'll see more about that later).
+  + `H_shift`: Shift in variance.
+
+### Noise Intervention in Prior Mean and Variance
+
+It is also possible to intervene in the prior mean. Suppose an increase in the market level is expected for the year 1957, we can add a change in level of 80 units and increase the variance by 100 at January $(t=25)$
+
+$$
+\mathbf{h}_{25} = \begin{bmatrix}
+80 \\ 
+0
+\end{bmatrix} 
+\quad 
+\text{and}
+\quad 
+\mathbf{H}_{25} = \begin{bmatrix}
+100 & 0 \\
+0 & 0
+\end{bmatrix}
+$$
+
+now, updating our intervention list 
+
+```{python intervention-list-3}
+intervention_list = [{
+  "time_index": 12, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([0, 0]),
+    "H_shift": np.array([[100, 25], [25, 25]])}], 
+    
+  "time_index": 25, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([80, 0]),
+    "H_shift": np.array([[100, 0], [0, 0]])}]
+}]
+```
+
+In January 1958 $(t=37)$ another jump in level is anticipated, this time of about 100 units with a feeling of increased certainly about the new level and also a anticipated uncertainly for the growth. At this time, the prior mean and variance given by
+
+$$
+\mathbf{a}_{37} = \begin{bmatrix}
+864.5 \\
+0
+\end{bmatrix}
+\quad 
+\text{and}
+\quad 
+\mathbf{R}_{37} = \begin{bmatrix}
+91.7 & 9.2 \\
+9.2 & 1.56
+\end{bmatrix}
+$$
+
+are simply altered to 
+
+$$
+\mathbf{a}^{*}_{37} = \begin{bmatrix}
+970 \\
+0
+\end{bmatrix}
+\quad 
+\text{and}
+\quad 
+\mathbf{R}^{*}_{37} = \begin{bmatrix}
+50 & 0 \\
+0 & 5
+\end{bmatrix}
+$$
+
+### Performing the fit (filter and smoothing) with interventions
 
 ```{python cp6-fit-with-intervention}
 list_interventions = [
@@ -72,159 +193,9 @@ list_interventions = [
      "parameters": [{"a_star": np.array([970, 0]),
                      "R_star": np.array([[50, 0], [0, 5]])}]}
 ]
-manual_interventions = ManualIntervention(mod=mod)
+manual_interventions = Intervention(mod=mod)
 out_int = manual_interventions.fit(
     y=cp6["sales"], interventions=list_interventions)
 dict_filter_int = out_int.get("filter")
 dict_smooth_int = out_int.get("smooth")
-```
-
-- Organizing the data into two data.frame: `data_predictive` and `data_posterior`.
-
-```{python organize-predictive-data}
-# Filter
-data_predictive_filter_int = dict_filter_int.get("predictive").copy()
-data_predictive_filter_no_int = dict_filter_no_int.get("predictive").copy()
-data_predictive_filter_no_int["intervention_type"] = "nothing"
-data_predictive_filter_int["intervention_fit"] = True
-data_predictive_filter_no_int["intervention_fit"] = False
-cols = data_predictive_filter_int.columns
-data_predictive_filter = pd.concat(
-  [data_predictive_filter_int, data_predictive_filter_no_int[cols]]
-)
-# Smooth
-data_predictive_smooth_int = dict_smooth_int.get("predictive").copy()
-data_predictive_smooth_no_int = dict_smooth_no_int.get("predictive").copy()
-data_predictive_smooth_no_int["intervention_type"] = "nothing"
-data_predictive_smooth_int["intervention_fit"] = True
-data_predictive_smooth_no_int["intervention_fit"] = False
-cols = data_predictive_smooth_int.columns
-data_predictive_smooth = pd.concat(
-  [data_predictive_smooth_int, data_predictive_smooth_no_int[cols]]
-)
-# Append data
-data_predictive_smooth["type"] = "smooth"
-data_predictive_filter["type"] = "filter"
-data_predictive_smooth.rename(columns={"fk": "f", "qk": "q"}, inplace=True)
-cols_ord = ["t", "intervention_fit", "type", "f", "q", 'ci_lower', 'ci_upper']
-data_predictive = pd.concat(
-    [data_predictive_filter[cols_ord], data_predictive_smooth[cols_ord]])
-data_predictive = data_predictive.join(cp6)
-```
-
-
-```{python organize-posterior-data}
-# Filter
-data_posterior_filter_int = dict_filter_int.get("posterior").copy()
-data_posterior_filter_no_int = dict_filter_no_int.get("posterior").copy()
-data_posterior_filter_no_int["intervention_type"] = "nothing"
-data_posterior_filter_int["intervention_fit"] = True
-data_posterior_filter_no_int["intervention_fit"] = False
-cols = data_posterior_filter_int.columns
-data_posterior_filter = pd.concat(
-  [data_posterior_filter_int, data_posterior_filter_no_int[cols]]
-)
-# Smooth
-data_posterior_smooth_int = dict_smooth_int.get("posterior").copy()
-data_posterior_smooth_no_int = dict_smooth_no_int.get("posterior").copy()
-data_posterior_smooth_no_int["intervention_type"] = "nothing"
-data_posterior_smooth_int["intervention_fit"] = True
-data_posterior_smooth_no_int["intervention_fit"] = False
-cols = data_posterior_smooth_int.columns
-data_posterior_smooth = pd.concat(
-  [data_posterior_smooth_int, data_posterior_smooth_no_int[cols]]
-)
-# Append data
-data_posterior_smooth["type"] = "smooth"
-data_posterior_filter["type"] = "filter"
-data_posterior_filter.set_index(data_posterior_filter["t"].values-1, inplace=True)
-data_posterior_smooth.set_index(data_posterior_smooth["t"].values-1, inplace=True)
-
-cols_ord = ["t", "intervention_fit", "type", "parameter", "mean", "variance",
-            'ci_lower', 'ci_upper']
-data_posterior = pd.concat(
-    [data_posterior_filter[cols_ord], data_posterior_smooth[cols_ord]])
-data_posterior = data_posterior.join(cp6)    
-```
-
-
-- Plotting some results
-
-```{r plot-fit-cp6, echo=FALSE}
-data_predictive <- py$data_predictive %>% 
-  mutate(time = as.Date(time))
-data_posterior <- py$data_posterior %>% 
-  mutate(time = as.Date(time))
-
-data_predictive |> 
-  filter(type == "filter") |> 
-  ggplot(aes(x = time, y = sales)) +
-  geom_point(size = 3) +
-  geom_line(aes(y = f, col = intervention_fit), size = 0.8) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  theme(legend.position = "top") +
-  colorspace::scale_color_discrete_divergingx()
-
-data_predictive |> 
-  filter(type == "filter") |>
-  ggplot(aes(x = time, y = sales)) +
-  facet_wrap(~intervention_fit, ncol = 2) +
-  geom_point(size = 3) +
-  geom_line(aes(y = f), col = blue, size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y")
-
-data_predictive |> 
-  filter(type == "smooth") |> 
-  ggplot(aes(x = time, y = sales)) +
-  geom_point(size = 3) +
-  geom_line(aes(y = f, col = intervention_fit), size = 0.8) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  theme(legend.position = "top") +
-  colorspace::scale_color_discrete_divergingx()
-
-data_predictive |> 
-  filter(type == "smooth") |>
-  ggplot(aes(x = time, y = sales)) +
-  facet_wrap(~intervention_fit, ncol = 2) +
-  geom_point(size = 3) +
-  geom_line(aes(y = f), col = blue, size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  ggtitle("Smooth predictive with and without intervention")
-
-data_posterior |> 
-  filter(type == "smooth", parameter == "theta_1") |>
-  ggplot(aes(x = time, y = sales)) +
-  facet_wrap(~intervention_fit, ncol = 2) +
-  geom_point(size = 3) +
-  geom_line(aes(y = mean), col = blue, size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  ggtitle("Smooth level with and without intervention")
-
-data_posterior |> 
-  filter(type == "smooth", parameter == "theta_2") |>
-  ggplot(aes(x = time, y = mean)) +
-  facet_wrap(~intervention_fit, ncol = 2) +
-  geom_line(col = blue, size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  ggtitle("Smooth growth with and without intervention")
-
-data_posterior |> 
-  filter(type == "filter", parameter == "theta_2") |>
-  ggplot(aes(x = time, y = mean)) +
-  facet_wrap(~intervention_fit, ncol = 2) +
-  geom_line(col = blue, size = 1.2) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
-  ggtitle("Filter growth with and without intervention")
 ```
