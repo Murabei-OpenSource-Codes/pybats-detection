@@ -1,0 +1,205 @@
+---
+title: "`pybats-detection`: Quick start guide"
+author: "André Menezes and Eduardo Gabriel"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup, include=FALSE}
+options(digits = 4, prompt = ">>> ", continue = ">>> ", width = 70,
+        useFancyQuotes = FALSE)
+library(reticulate)
+use_virtualenv(virtualenv = "pybats_detection",required = TRUE)
+knitr::opts_chunk$set(
+   echo = TRUE, message = FALSE, warning = FALSE,
+   fig.align = "center", prompt = TRUE, tidy = TRUE)
+```
+
+# Step 0: Install `pybats-detection`
+
+Use:
+
+```{bash, eval = FALSE}
+git clone git@github.com:Murabei-OpenSource-Codes/pybats-detection.git pybats-detection
+cd pybats-detection
+python setup.py install
+```
+
+The `pybats-detection` provides two main modules, namely: `Intervention` and
+`Monitoring`. For each class we shall show a quick start guide of how to use
+them.
+
+# `Intervention` class
+
+## Step 1: Load the required modules
+
+```{python monitor}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pybats.dglm import dlm
+from matplotlib.pyplot import figure
+from pybats_detection.loader import load_cp6
+from pybats_detection.intervention import Intervention
+```
+
+```{python, include=FALSE}
+# plt.rcParams.update({'font.size': 22})
+```
+
+
+## Step 2: Load or import your data
+
+Some data from literature are included with the package. The `load_cp6()`
+function load the time series of monthly total sales of tobacco and related
+products marketed by a major company in the UK.
+
+```{python load-data}
+cp6 = load_cp6()
+cp6.head()
+```
+
+## Step 3: Define the model
+
+```{python model}
+a = np.array([600, 1])
+R = np.array([[100, 0], [0, 25]])
+mod = dlm(a0=a, R0=R, ntrend=2, deltrend=[0.90, 0.98])
+mod.get_coef()
+```
+
+## Step 4: Specify the interventions
+
+```{python list-interventions}
+list_interventions = [
+    {"time_index": 12, "which": ["variance", "noise"],
+     "parameters": [{"v_shift": "ignore"},
+                    {"h_shift": np.array([0, 0]),
+                     "H_shift": np.array([[1000, 25], [25, 25]])}]
+     },
+    {"time_index": 25, "which": ["noise", "variance"],
+     "parameters": [{"h_shift": np.array([80, 0]),
+                     "H_shift": np.array([[100, 0], [0, 0]])},
+                    {"v_shift": "ignore"}]},
+    {"time_index": 37, "which": ["subjective"],
+     "parameters": [{"a_star": np.array([970, 0]),
+                     "R_star": np.array([[50, 0], [0, 5]])}]}
+]
+```
+
+## Step 5: Initialize the `Intervention` class
+
+```{python initialize-class}
+dlm_intervention = Intervention(mod=mod)
+```
+
+## Step 6: Use the method `fit`
+
+```{python fit-intervention}
+results = dlm_intervention.fit(
+   y=cp6["sales"], interventions=list_interventions)
+```
+
+## Step 7: Examine the results
+
+```{python examine-results}
+results.keys()
+dict_smooth = results.get("smooth")
+data_posterior = dict_smooth.get("posterior")
+data_level = data_posterior[data_posterior["parameter"] == "Intercept"].copy()
+data_level.head()
+```
+
+## Step 8: Plot the results
+
+```{python plot-int}
+figure(figsize=(12, 4))
+plt.plot(cp6["time"], cp6["sales"], "o",
+         markersize=6, color="black", fillstyle="none")
+plt.plot(cp6["time"], data_level["mean"], color="blue")
+plt.plot(cp6["time"], data_level["ci_lower"], color="blue",
+         linestyle="dashed")
+plt.plot(cp6["time"], data_level["ci_upper"], color="blue",
+         linestyle="dashed")
+plt.grid(linestyle="dotted")
+plt.xlabel("Time")
+plt.ylabel("Monthly total sales")
+plt.show()
+```
+
+
+# `Monitoring` class
+
+## Step 1: Load the required modules
+
+```{python pkgs-monitor}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from pybats.dglm import dlm
+from matplotlib.pyplot import figure
+from pybats_detection.monitor import Monitoring
+from pybats_detection.loader import load_telephone_calls
+```
+
+## Step 2: Load or import your data
+
+The `load_telephone_calls()` function load the time series of
+the average number of calls per day in each month to Cincinnati directory assistance.
+
+```{python load-data-telephone}
+telephone_calls = load_telephone_calls()
+telephone_calls.head()
+```
+
+## Step 3: Define the model
+
+```{python model-telephone}
+a = np.array([350, 0])
+R = np.eye(2)
+np.fill_diagonal(R, val=[100])
+mod = dlm(a, R, ntrend=2, deltrend=0.95)
+mod.get_coef()
+```
+
+## Step 4: Initialize the `Monitoring` class
+
+```{python}
+monitor = Monitoring(mod=mod, bilateral=True, prior_length=40)
+```
+
+## Step 6: Use the method `fit`
+
+```{python fit-monitor}
+results = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
+                      tau=0.135, change_var=[6, 2], type="location",
+                      distr="normal", verbose=True)
+```
+
+## Step 7: Examine the results
+
+```{python examine-results-monitor}
+results.keys()
+dict_filter = results.get("filter")
+dict_filter.keys()
+data_predictive = dict_filter.get("predictive")
+data_predictive.head()
+```
+
+## Step 8: Plot the results
+
+```{python plot-monitor}
+figure(figsize=(12, 4))
+plt.plot(telephone_calls["time"], telephone_calls["average_daily_calls"], "o",
+         markersize=6, color="black", fillstyle="none")
+plt.plot(telephone_calls["time"], data_predictive["f"], color="blue")
+plt.plot(telephone_calls["time"], data_predictive["ci_lower"], color="blue",
+         linestyle="dashed")
+plt.plot(telephone_calls["time"], data_predictive["ci_upper"], color="blue",
+         linestyle="dashed")
+plt.grid(linestyle="dotted")
+plt.xlabel("Time")
+plt.ylabel("Average daily calls")
+plt.show()
+```
+
+

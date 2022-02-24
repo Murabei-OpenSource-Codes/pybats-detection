@@ -7,6 +7,7 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 # Manual Intervention
 
 ## CP6
+
 To illustrate the subjective intervention class we use the CP6 data graphed below. This time series runs from January 1955 to December 1959, providing monthly total sales, in monetary terms on a standard scale, of a product by a major company in UK. Note that the use of standard time series models may not wield satisfactory results as there a some points that need some attention: 
 
 1. During 1955 the market grows fast at a fast but steady rate, 
@@ -32,6 +33,8 @@ p_cp6 <- ggplot(df_cp6, aes(x = time, y = sales)) +
   axis.title=element_text(size=20))
 p_cp6
 ```
+
+## Fit Without Intervention
 
 Given this, let's see how a standard dlm performs. The model used is defined below. 
 
@@ -70,7 +73,17 @@ data_predictive %>%
 
 Note that until November 1955 the forecast distribution was quite acceptable, the credibility interval was relatively small and the errors was were distributed around zero and inside the interval. But with the jump in December 1955 the level rises dramatically, the biggest problem is not the model's inability to efficiently predict this point, but the influence it has on future predictions. Note that for most of the year 1956 the predicted sales overestimation the real sales, giving a cluster of negative errors $(y_t - f_t)$. In early 1957 another jump was observed, but in this case, it was accompanied by a regime change. And this has great impact in the amplitude of the credibility intervals. In early 1958 another regime change, followed by a change in grow, that is not properly modeled since from August 1958 to January 1960 all errors were negative with the exception of July 1959. 
 
-With the intervention class it is possible to consider outside information to define the prior distribution at the time $t$. This can be done in two ways: shift or subjective. In our example, suppose that a change in growth for the year 1956 was anticipated. An increase in uncertainty about level and growth can be done by the addition of a matrix $H_t$ to $R_t$ at time $t=12$ given by
+## Fit With Intervention
+
+With the intervention class it is possible to consider outside information to define the prior distribution at the time $t$. This can be done in two ways: noise or subjective. Which must be provided in a list of dictionaries containing the time the intervention will be carried out and the type. Lets start with a empty list
+
+```{python intervention-list-1}
+intervention_list = []
+```
+
+### Noise Intervention in Prior Variance
+
+In our example, suppose that a change in growth for the year 1956 was anticipated. An increase in uncertainty about level and growth can be done by the addition of a matrix $H_t$ to $R_t$ at time $t=12$ given by
 
 $$
   H_t = \begin{bmatrix}
@@ -78,7 +91,28 @@ $$
     25 & 25
   \end{bmatrix}
 $$
-Thus, there is an increase (a positive shift) in the prior variance of the components. It is also possible to intervene in the prior mean. Suppose an increase in the market level is expected for the year 1957, we can add a change in level of 80 units and increase the variance by 100 at January $(t=25)$
+Thus, there is an increase (a positive shift) in the prior variance of the components. In our list of interventions we have
+
+```{python intervention-list-2}
+intervention_list = [{
+  "time_index": 12, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([0, 0]),
+    "H_shift": np.array([[100, 25], [25, 25]])}]
+}]
+```
+
+where
+
+* `time_index`: time of intervention;
+* `which`: type of intervention (in this case, a noise intervention); 
+* `parameters`: the values for the intervention.
+  + `h_shit`: Shift in mean (we'll see more about that later).
+  + `H_shift`: Shift in variance.
+
+### Noise Intervention in Prior Mean and Variance
+
+It is also possible to intervene in the prior mean. Suppose an increase in the market level is expected for the year 1957, we can add a change in level of 80 units and increase the variance by 100 at January $(t=25)$
 
 $$
 \mathbf{h}_{25} = \begin{bmatrix}
@@ -93,6 +127,22 @@ $$
 0 & 0
 \end{bmatrix}
 $$
+
+now, updating our intervention list 
+
+```{python intervention-list-3}
+intervention_list = [{
+  "time_index": 12, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([0, 0]),
+    "H_shift": np.array([[100, 25], [25, 25]])}], 
+    
+  "time_index": 25, "which": ["noise"],
+  "parameters": [{
+    "h_shift": np.array([80, 0]),
+    "H_shift": np.array([[100, 0], [0, 0]])}]
+}]
+```
 
 In January 1958 $(t=37)$ another jump in level is anticipated, this time of about 100 units with a feeling of increased certainly about the new level and also a anticipated uncertainly for the growth. At this time, the prior mean and variance given by
 
@@ -126,7 +176,7 @@ $$
 \end{bmatrix}
 $$
 
-- Performing the fit (filter and smoothing) with interventions
+### Performing the fit (filter and smoothing) with interventions
 
 ```{python cp6-fit-with-intervention}
 list_interventions = [
@@ -143,7 +193,7 @@ list_interventions = [
      "parameters": [{"a_star": np.array([970, 0]),
                      "R_star": np.array([[50, 0], [0, 5]])}]}
 ]
-manual_interventions = ManualIntervention(mod=mod)
+manual_interventions = Intervention(mod=mod)
 out_int = manual_interventions.fit(
     y=cp6["sales"], interventions=list_interventions)
 dict_filter_int = out_int.get("filter")

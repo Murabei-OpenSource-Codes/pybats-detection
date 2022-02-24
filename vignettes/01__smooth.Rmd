@@ -25,7 +25,7 @@ df_simulated = rdlm.level(
 y = df_simulated["y"]
 ```
 
-```{r, message = FALSE, fig.cap="Simulated data", fig.dim=c(16,9), warnings = FALSE, echo=FALSE, out.width = "90%"}
+```{r, message = FALSE, fig.cap="Simulated data", warnings = FALSE, echo=FALSE, out.width = "90%"}
 df = py$df_simulated
 df %>% ggplot(aes(x = t, y = y)) +
   geom_point(size = 3) + ylab(' ') + 
@@ -197,14 +197,14 @@ posterior_plot = function(data){
   return(p)
 }
 
-p1 = posteriori_filter_df %>% filter(parameter == 'theta_1') %>% 
+p1 = posteriori_filter_df %>% filter(parameter == 'Intercept') %>% 
   posterior_plot + ggtitle('Filter', subtitle = 'Component: Level')
-p2 = posteriori_filter_df %>% filter(parameter == 'theta_2') %>% 
+p2 = posteriori_filter_df %>% filter(parameter == 'Local Slope') %>% 
   posterior_plot + ggtitle('Filter', subtitle = 'Component: Growth') + 
   ylim(-2.0, 2.0)
-p3 = posteriori_smooth_df %>% filter(parameter == 'theta_1') %>% 
+p3 = posteriori_smooth_df %>% filter(parameter == 'Intercept') %>% 
   posterior_plot + ggtitle('Smooth', subtitle = 'Component: Level') 
-p4 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
+p4 = posteriori_smooth_df %>% filter(parameter == 'Local Slope') %>% 
   posterior_plot + ggtitle('Smooth', subtitle = 'Component: Growth') + 
   ylim(-2.0, 2.0)
 plot_grid(p1, p2, p3, p4)
@@ -264,69 +264,6 @@ posteriori_smooth_df = smooth_fit.get('smooth').get('posterior')
 
 predictive_filter_df['y'] = y.copy()
 predictive_smooth_df['y'] = y.copy()
-```
-
-```{python, include=FALSE, "Compute seasonality components sum mean smooth"}
-ak = smooth._dict_smooth_parms.get('ak')
-seasonality_block = [ak[-i][2:] for i in range(1, len(ak)+1)]
-ones_vec = mod.F[2:]
-
-seasonality_mean = [(ones_vec.T @ seasonality_block[i])[0][0] for i in range(len(ak))]
-```
-
-```{python, include=FALSE, "Compute seasonality component sum variance smooth"}
-Rk = smooth._dict_smooth_parms.get('Rk')
-seasonality_block = [Rk[-i][2:, 2:] for i in range(1, len(Rk)+1)]
-
-seasonality_variance = [(ones_vec.T @ seasonality_block[i] @ ones_vec)[0][0] for i in range(len(Rk))]
-
-seasonality_posteriori_smooth_df = pd.DataFrame({'parameter': 'theta_7', 
-'mean': seasonality_mean, 'variance': seasonality_variance, 
-'t': range(1, 145)}) 
-
-seasonality_posteriori_smooth_df['ci_lower'] = stats.t.ppf(
-  q=.025, df=seasonality_posteriori_smooth_df["t"].values[-1] + 1,
-  loc=seasonality_posteriori_smooth_df["mean"].values,
-  scale=np.sqrt(seasonality_posteriori_smooth_df["variance"].values))
-
-seasonality_posteriori_smooth_df['ci_upper'] = stats.t.ppf(
-  q=.975, df=seasonality_posteriori_smooth_df["t"].values[-1] + 1,
-  loc=seasonality_posteriori_smooth_df["mean"].values,
-  scale=np.sqrt(seasonality_posteriori_smooth_df["variance"].values))
-
-posteriori_smooth_df = pd.concat([posteriori_smooth_df, seasonality_posteriori_smooth_df])    
-```
-
-
-```{python, include=FALSE, "Compute seasonality components sum mean filter"}
-m = smooth._dict_state_parms.get('posterior').get('m')
-seasonality_block = [m[-i][2:] for i in range(1, len(m)+1)]
-ones_vec = mod.F[2:]
-
-seasonality_mean = [(ones_vec.T @ seasonality_block[i])[0][0] for i in range(len(m))]
-```
-
-```{python, include=FALSE, "Compute seasonality component sum variance filter"}
-C = smooth._dict_state_parms.get('posterior').get('C')
-seasonality_block = [C[-i][2:, 2:] for i in range(1, len(C)+1)]
-
-seasonality_variance = [(ones_vec.T @ seasonality_block[i] @ ones_vec)[0][0] for i in range(len(C))]
-
-seasonality_posteriori_filter_df = pd.DataFrame({'parameter': 'theta_7', 
-'mean': seasonality_mean, 'variance': seasonality_variance, 
-'t': range(1, 145)}) 
-
-seasonality_posteriori_filter_df['ci_lower'] = stats.t.ppf(
-  q=.025, df=seasonality_posteriori_filter_df["t"].values[-1] + 1,
-  loc=seasonality_posteriori_filter_df["mean"].values,
-  scale=np.sqrt(seasonality_posteriori_filter_df["variance"].values))
-
-seasonality_posteriori_filter_df['ci_upper'] = stats.t.ppf(
-  q=.975, df=seasonality_posteriori_filter_df["t"].values[-1] + 1,
-  loc=seasonality_posteriori_filter_df["mean"].values,
-  scale=np.sqrt(seasonality_posteriori_filter_df["variance"].values))
-
-posteriori_filter_df = pd.concat([posteriori_filter_df, seasonality_posteriori_filter_df])    
 ```
 
 ```{r, echo=FALSE, fig.dim=c(16, 9), out.width="90%", "plots for airpassangers example", fig.cap="Mean response for Filtered and Smoothed predictive distributions with $95\\%$ credibility intervals."}
@@ -390,15 +327,15 @@ date_posterior_plot = function(data){
   return(p)
 }
 
-p1 = posteriori_smooth_df %>% filter(parameter == 'theta_1') %>% 
+p1 = posteriori_smooth_df %>% filter(parameter == 'Intercept') %>% 
   date_posterior_plot + ggtitle('Component: Level')
 
-p_test = posteriori_filter_df %>% filter(parameter == 'theta_1') %>% 
+p_test = posteriori_filter_df %>% filter(parameter == 'Intercept') %>% 
   date_posterior_plot + ggtitle('Filter', subtitle = 'Component: Level')
 
-p3 = posteriori_smooth_df %>% filter(parameter == 'theta_2') %>% 
+p3 = posteriori_smooth_df %>% filter(parameter == 'Local Slope') %>% 
   date_posterior_plot + ggtitle('Component: Growth')
-p4 = posteriori_smooth_df %>% filter(parameter == 'theta_7') %>% 
+p4 = posteriori_smooth_df %>% filter(parameter == 'Sum Seas 1') %>% 
   date_posterior_plot + ggtitle('Component: Seasonality')
 
 plot_grid(p1, p3, p4)

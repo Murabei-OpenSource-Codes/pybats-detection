@@ -239,11 +239,15 @@ class Intervention:
     def _noise_intervention(self, parms):
         h_shift = parms.get("h_shift")
         H_shift = parms.get("H_shift")
-        self._mod.a = self._mod.a + h_shift.reshape(h_shift.shape[0], 1)
-        self._mod.R = self._mod.R + H_shift
+        if h_shift is not None:
+            self._mod.a = self._mod.a + h_shift.reshape(h_shift.shape[0], 1)
+        if H_shift is not None:
+            self._mod.R = self._mod.R + H_shift
 
     def _subjective_intervention(self, parms):
         a_star = parms.get("a_star")
         R_star = parms.get("R_star")
-        self._mod.a = a_star.reshape(a_star.shape[0], 1)
-        self._mod.R = R_star
+        if a_star is not None:
+            self._mod.a = a_star.reshape(a_star.shape[0], 1)
+        if R_star is not None:
+            self._mod.R = R_star
