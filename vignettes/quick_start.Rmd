@@ -11,8 +11,7 @@ library(reticulate)
 use_virtualenv(virtualenv = "pybats_detection",required = TRUE)
 knitr::opts_chunk$set(
    echo = TRUE, message = FALSE, warning = FALSE,
-   dev = "png", fig.align = "center", fig.width = 16,
-   fig.height = 6, prompt = TRUE, tidy = TRUE)
+   fig.align = "center", prompt = TRUE, tidy = TRUE)
 ```
 
 # Step 0: Install `pybats-detection`
@@ -42,6 +41,11 @@ from matplotlib.pyplot import figure
 from pybats_detection.loader import load_cp6
 from pybats_detection.intervention import Intervention
 ```
+
+```{python, include=FALSE}
+# plt.rcParams.update({'font.size': 22})
+```
+
 
 ## Step 2: Load or import your data
 
@@ -108,11 +112,9 @@ data_level.head()
 ## Step 8: Plot the results
 
 ```{python plot-int}
-figure(figsize=(16, 6))
-plt.rcParams.update({'font.size': 22})
+figure(figsize=(12, 4))
 plt.plot(cp6["time"], cp6["sales"], "o",
          markersize=6, color="black", fillstyle="none")
-# plt.plot(df_fit["f"], color="red")
 plt.plot(cp6["time"], data_level["mean"], color="blue")
 plt.plot(cp6["time"], data_level["ci_lower"], color="blue",
          linestyle="dashed")
@@ -186,10 +188,9 @@ data_predictive.head()
 ## Step 8: Plot the results
 
 ```{python plot-monitor}
-figure(figsize=(16, 6))
+figure(figsize=(12, 4))
 plt.plot(telephone_calls["time"], telephone_calls["average_daily_calls"], "o",
          markersize=6, color="black", fillstyle="none")
-# plt.plot(df_fit["f"], color="red")
 plt.plot(telephone_calls["time"], data_predictive["f"], color="blue")
 plt.plot(telephone_calls["time"], data_predictive["ci_lower"], color="blue",
          linestyle="dashed")
@@ -198,7 +199,6 @@ plt.plot(telephone_calls["time"], data_predictive["ci_upper"], color="blue",
 plt.grid(linestyle="dotted")
 plt.xlabel("Time")
 plt.ylabel("Average daily calls")
-plt.rcParams.update({'font.size': 22})
 plt.show()
 ```
 
