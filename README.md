@@ -3,6 +3,12 @@
 The `pybats-detection` is a `python` package with routines implemented in python for detection of outlier and structural changes in time series using Bayesian Dynamic Linear Models (DLM).
 The currently version of the package implements the automatic monitoring, manual intervention and smoothing for DLM’s.
 
+The stable version of `pybats-detection` can be installed from [PyPI](https://pypi.org/) using:
+
+```
+pip install pybats-detection
+```
+
 The development version can be installed from [GitHub](https://github.com/) using:
 
 ```
@@ -24,9 +30,9 @@ as a `pandas.Series` object and further arguments related to each class.
 
 User manuals can be found in:
 
-- [pybats_detection](https://raw.githubusercontent.com/Murabei-OpenSource-Codes/pybats-detection/master/vignettes/pybats_detection.html): detailed explanation of `pybats-detection` usability.
+- [pybats_detection](https://raw.githubusercontent.com/Murabei-OpenSource-Codes/pybats-detection/develop/vignettes/pybats_detection.pdf): detailed explanation of `pybats-detection` usability.
 
-- [quick_start](https://raw.githubusercontent.com/Murabei-OpenSource-Codes/pybats-detection/master/vignettes/quick_start.html): quick reference guide with step-by-step usability.
+- [quick_start](https://raw.githubusercontent.com/Murabei-OpenSource-Codes/pybats-detection/develop/vignettes/quick_start.pdf): quick reference guide with step-by-step usability.
 
 ## Authors
 

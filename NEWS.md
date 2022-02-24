@@ -1,4 +1,4 @@
-# `pybats-detection` 0.0.3
+# `pybats-detection` 0.0.4
 
   - Changed the names of model components. Now we are using the same name as `pybats`
   - Included the sum of seasonality components in the smooth and filter posterior moments
