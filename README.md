@@ -46,4 +46,4 @@ advised by professor [Hélio Migon](http://lattes.cnpq.br/7997248190492823) and
 ## License
 
 The `pybats-detection` package is released under the Apache License, Version 2.0.
-Please, see file `LICENSE.md`.
+Please, see file [`LICENSE.md`](https://github.com/Murabei-OpenSource-Codes/pybats-detection/blob/develop/LICENSE.md).
