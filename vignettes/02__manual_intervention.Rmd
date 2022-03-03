@@ -176,9 +176,14 @@ $$
 \end{bmatrix}
 $$
 
-### Performing the fit (filter and smoothing) with interventions
+### Observational Variance Intervention
+It is also possible to perform interventions on observational variance. This can be useful for outlier anticipation. 
 
-```{python cp6-fit-with-intervention}
+Suppose that at the end of 1955 there will be an announcement of future price increases which will result in forward-buying. So, a intervention at December 1955 $(t=12)$ will allow for an anticipated outlier. In late 1956, there is a a view that the marked change in the new year will begin with a maverick value, as the product that are to be discontinued are sold cheaply. 
+
+This interventions can be done by including a variance intervention in our list of interventions for the respective time:
+
+```{python intervention-list-4}
 list_interventions = [
     {"time_index": 12, "which": ["variance", "noise"],
      "parameters": [{"v_shift": "ignore"},
@@ -193,9 +198,33 @@ list_interventions = [
      "parameters": [{"a_star": np.array([970, 0]),
                      "R_star": np.array([[50, 0], [0, 5]])}]}
 ]
+```
+
+### Performing the fit (filter and smoothing) with interventions
+Finally, the fit with intervention can be done using the `Intervention` class. In the `.fit` method we will initialize the model and the loop forecast, observe and update, this time with the interventions given in `list_interventions`, begin. This will return a dictionary with the same structure as presented in the smoothing section.  
+
+```{python cp6-fit-with-intervention}
 manual_interventions = Intervention(mod=mod)
 out_int = manual_interventions.fit(
     y=cp6["sales"], interventions=list_interventions)
-dict_filter_int = out_int.get("filter")
-dict_smooth_int = out_int.get("smooth")
+dict_filter_int = out_int.get("filter").get("predictive")
+```
+
+```{r plot-fit-cp6-filter-intervention, echo=FALSE, fig.cap="Mean response for filtered predictive distribution with $95\\%$ credibility interval and ideal interventions", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+data_predictive = py$dict_filter_int 
+data_predictive$time = df_cp6$time
+
+data_predictive %>%
+  ggplot(aes(x = time, y = y)) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f), size = 0.8) +
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=.25, colour = 'grey40') +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  xlab('Month/Year') + ylab('Sales') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20)) +
+  colorspace::scale_color_discrete_divergingx()
 ```
