@@ -6,363 +6,39 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 # Automatic Monitoring
 
-## Simulated examples
+The automatic monitoring method sequentially evaluate the forecasting activity to
+detect breakdowns, based on Bayes factor. 
 
-### Level Change
-
-```{python simulating-level-change-data, engine = "python"}
-np.random.seed(66)
-rdlm = RandomDLM(n=50, V=0.1, W=0.005)
-df_simulated = rdlm.level(
-    start_level=100,
-    dict_shift={"t": [40],
-                "level_mean_shift": [1],
-                "level_var_shift": [1]})
-df_simulated.loc[40:50, "y"] = 101 + np.random.normal(0, 0.2, 10)
-```
-
-```{r plot-level-change-data, echo=FALSE}
-ggplot(py$df_simulated, aes(x = t, y = y)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-```
-
+Again with the CP6 data, the automatic monitoring can be done using the 
+`Monitoring` class. 
 
 ```{python fit-level-change-data}
-a = np.array([100])
-R = np.eye(1)
-R[[0]] = 100
-mod = dlm(a, R, ntrend=1, deltrend=0.9)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["monitor"] = False
+a = np.array([600, 1])
+R = np.array([[100, 0], [0, 25]])
+mod = dlm(a, R, ntrend=2, deltrend=[0.90, 0.98])
 
 # Fit with monitoring
 monitor = Monitoring(mod=mod, bilateral=False)
-fit_monitor = monitor.fit(y=df_simulated["y"], h=3, tau=0.135, change_var=[100])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["monitor"] = True
-cols_ord = ["t", "y", "f", "q", "ci_lower", "ci_upper", "monitor", "e",
-            "H", "L", "l"]
-df_res = pd.concat([df_res, df_tmp[cols_ord]]).reset_index(drop=True)
+fit_monitor = monitor.fit(y=cp6["sales"], h=4, tau=0.135, change_var=[100])
+forecast_df = fit_monitor.get("filter").get("predictive")
 ```
+```{r plot-fit-cp6-filter-monitor, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credibility interval", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+df_cp6 <- py$cp6 %>% mutate(time = as.Date(time))
 
+data_predictive = py$forecast_df 
+data_predictive$time = df_cp6$time
 
-```{r plot-fit-level-change-data, echo=FALSE}
-ggplot(py$df_res, aes(x = t, y = y)) +
-  geom_point(size = 2) +
-  geom_line(linetype = "dashed") +
-  geom_point(aes(y = f, col = monitor), size = 2) +
-  geom_line(aes(y = f, col = monitor), linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(t, y, f, q, e, H, L, l)
-```
-
-
-### Outliers
-
-```{python simulating-outliers-data}
-np.random.seed(66)
-rdlm = RandomDLM(n=50, V=0.1, W=0.01)
-df_simulated = rdlm.level(
-    start_level=100,
-    dict_shift={"t": [10, 11, 20, 21, 30, 31, 40, 41],
-                "level_mean_shift": [2, -2, 3, -3, 3.4, -3.4, 3, -3],
-                "level_var_shift": [1, 1, 1, 1, 1, 1, 1, 1]})
-```
-
-```{r plot-outliers-data, echo=FALSE}
-ggplot(py$df_simulated, aes(x = t, y = y)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-```
-
-```{python fit-outliers-data, echo=TRUE}
-a = np.array([100])
-R = np.eye(1)
-R[[0]] = 100
-mod = dlm(a, R, ntrend=1, deltrend=0.9)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["monitor"] = False
-
-# Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=False)
-fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["monitor"] = True
-
-# Append
-cols_ord = ["t", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
-df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
-```
-
-```{r plot-fit-outliers-data, echo=FALSE}
-ggplot(py$df_res, aes(x = t, y = y)) +
-  geom_point(size = 2) +
-  geom_line(linetype = "dashed") +
-  geom_point(aes(y = f, col = monitor), size = 2) +
-  geom_line(aes(y = f, col = monitor), linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(t, y, f, q, e, H, L, l)
-```
-
-
-### Outlier and Level Change 
-
-```{python simulating-outlier-level-change-data}
-np.random.seed(66)
-rdlm = RandomDLM(n=50, V=0.1, W=0.01)
-df_simulated = rdlm.level(
-    start_level=100,
-    dict_shift={"t": [20, 21, 40],
-                "level_mean_shift": [3, -3, 10],
-                "level_var_shift": [1, 1, 1]})
-```
-
-```{r plot-outlier-level-change-data, echo=FALSE}
-ggplot(py$df_simulated, aes(x = t, y = y)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-```
-
-
-```{python fit-outlier-level-change-data, echo=FALSE}
-a = np.array([100])
-R = np.eye(1)
-R[[0]] = 100
-mod = dlm(a, R, ntrend=1, deltrend=0.9)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["monitor"] = False
-
-# Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=False)
-fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["monitor"] = True
-
-# Append
-cols_ord = ["t", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
-df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
-```
-
-```{r plot-fit-outlier-level-change-data, echo=FALSE}
-ggplot(py$df_res, aes(x = t, y = y)) +
-  geom_point(size = 2) +
-  geom_line(linetype = "dashed") +
-  geom_point(aes(y = f, col = monitor), size = 2) +
-  geom_line(aes(y = f, col = monitor), linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(t, y, f, q, e, H, L, l)
-```
-
-
-### Outlier and Two Level Change
-
-```{python simulating-outlier-two-level-change-data}
-np.random.seed(66)
-rdlm = RandomDLM(n=70, V=1, W=0.01)
-df_simulated = rdlm.level(
-    start_level=100,
-    dict_shift={"t": [20, 21, 40, 60],
-                "level_mean_shift": [5, -5, 10, 10],
-                "level_var_shift": [1, 1, 1, 1]})
-```
-
-```{r plot-outlier-two-level-change-data, echo=FALSE}
-ggplot(py$df_simulated, aes(x = t, y = y)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-```
-
-
-```{python fit-outlier-two-level-change-data, echo=FALSE}
-a = np.array([100])
-R = np.eye(1)
-R[[0]] = 100
-mod = dlm(a, R, ntrend=1, deltrend=0.9)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["monitor"] = False
-
-# Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=False)
-fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["monitor"] = True
-
-# Append
-cols_ord = ["t", "y", "f", "q", "monitor", "e", "H", "L", "l"]
-df_res = pd.concat([df_res, df_tmp[cols_ord]]).reset_index(drop=True)
-```
-
-```{r plot-fit-outlier-two-level-change-data, echo=FALSE}
-ggplot(py$df_res, aes(x = t, y = y)) +
-  geom_point(size = 2) +
-  geom_line(linetype = "dashed") +
-  geom_point(aes(y = f, col = monitor), size = 2) +
-  geom_line(aes(y = f, col = monitor), linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(t, y, f, q, e, H, L, l)
-```
-
-### Bilateral Level Change
-
-```{python simulating-bilateral-level-change-data}
-np.random.seed(66)
-y1 = np.random.normal(loc=100, scale=0.8, size=40)
-y2 = np.random.normal(loc=104, scale=0.5, size=20)
-y3 = np.random.normal(loc=98, scale=0.5, size=20)
-y = np.concatenate([y1, y2, y3])
-t = np.arange(0, len(y)) + 1
-df_simulated = pd.DataFrame({"t": t, "y": y})
-```
-
-```{r plot-bilateral-level-change-data, echo=FALSE}
-ggplot(py$df_simulated, aes(x = t, y = y)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-```
-
-```{python fit-bilateral-level-change-data, echo=FALSE}
-a = np.array([100])
-R = np.eye(1)
-R[[0]] = 100
-mod = dlm(a, R, ntrend=1, deltrend=0.80)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["monitor"] = False
-
-# Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=True)
-fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["monitor"] = True
-
-# Append
-cols_ord = ["t", "y", "f", "q", "ci_lower", "ci_upper", "monitor"]
-df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
-```
-
-```{r plot-bilateral-fit-level-change-data}
-ggplot(py$df_res, aes(x = t, y = y)) +
-  geom_point(size = 2) +
-  geom_line(linetype = "dashed") +
-  geom_point(aes(y = f, col = monitor), size = 2) +
-  geom_line(aes(y = f, col = monitor), linetype = "dashed") +
-  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(t, y, f, q, e, H_lower, L_lower, l_lower,
-         H_upper, L_upper, l_upper)
-```
-
-
-## Real data applications
-
-### Telephone Calls
-
-```{python load-telephone-calls, echo=FALSE}
-telephone_calls = load_telephone_calls()
-```
-
-
-```{r plot-telephone-calls, echo=FALSE}
-df_telephone <- py$telephone_calls |> 
-  mutate(time = as.Date(time))
-dplyr::glimpse(df_telephone)
-ggplot(df_telephone, aes(x = time, y = average_daily_calls)) +
-  geom_point() +
-  geom_line(linetype = "dashed") +
-  scale_x_date(breaks = scales::pretty_breaks(8)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(6))
-```
-
-```{python fit-telephone-calls, echo=FALSE}
-a = np.array([350, 0])
-R = np.eye(2)
-np.fill_diagonal(R, val=[100])
-mod = dlm(a, R, ntrend=2, deltrend=0.95)
-
-# Fit without monitoring
-fit_without_monitor = Smoothing(mod=mod).fit(y=telephone_calls["average_daily_calls"])
-df_res = fit_without_monitor.get("filter").get("predictive")
-df_res["time"] = telephone_calls["time"].values
-df_res["monitor"] = False
-
-# Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=True, prior_length=20)
-fit_monitor = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
-                          tau=0.135, change_var=[10, 2])
-df_tmp = fit_monitor.get("filter").get("predictive")
-df_tmp["time"] = telephone_calls["time"].values
-df_tmp["monitor"] = True
-
-# Append
-cols_ord = ["t", "time", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
-df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
-
-# Smooth posterior (level and growth)
-df_smooth = fit_without_monitor.get("smooth").get("posterior").copy()
-df_smooth["monitor"] = False
-# n_parms = len(df_smooth["parameter"].unique())
-# df_smooth["time"] = np.repeat(telephone_calls["time"].values, n_parms)
-df_smooth_monitor = fit_monitor.get("smooth").get("posterior").copy()
-df_smooth_monitor["monitor"] = True
-# df_smooth_monitor["time"] = np.repeat(telephone_calls["time"].values, n_parms)
-df_smooth = pd.concat([df_smooth, df_smooth_monitor]).reset_index(drop=True)
-```
-
-
-```{r plot-fit-telephone-calls-predictive, echo=FALSE}
-py$df_res |> 
-  mutate(time = as.Date(time)) |> 
+data_predictive %>%
   ggplot(aes(x = time, y = y)) +
-  geom_point(size = 2) +
-  geom_line(aes(y = f, col = monitor)) +
-  scale_color_manual(values = c(red, blue)) +
-  scale_x_date(breaks = scales::pretty_breaks(8)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-
-py$df_res |> 
-  mutate(time = as.Date(time)) |>
-  ggplot(aes(x = time, y = y)) +
-  facet_wrap(~monitor, ncol = 1) +
-  geom_point(size = 2) +
-  geom_line(aes(y = f), col = blue) +
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), col = "grey69", alpha = 0.2) +
-  scale_x_date(breaks = scales::pretty_breaks(8)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(10))
-py$df_tmp %>% 
-  select(time, y, f, q, e, H_lower, L_lower, l_lower,
-         H_upper, L_upper, l_upper)
+  geom_point(size = 3) +
+  geom_line(aes(y = f), size = 0.8) +
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=.25, colour = 'grey40') +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  xlab('Month/Year') + ylab('Sales') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20)) +
+  colorspace::scale_color_discrete_divergingx()
 ```
