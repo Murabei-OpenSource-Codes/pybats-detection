@@ -27,8 +27,8 @@ class TestMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = Monitoring(mod=mod, bilateral=False)
-        out = monitor.fit(y=df_simulated["y"])
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], bilateral=False)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__bilateral_level(self):
@@ -48,8 +48,8 @@ class TestMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = Monitoring(mod=mod, bilateral=False)
-        out = monitor.fit(y=df_simulated["y"])
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], bilateral=False)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__variance_positive_unilateral(self):
@@ -72,8 +72,8 @@ class TestMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = Monitoring(mod=mod, bilateral=False)
-            out = monitor.fit(y=df_simulated["y"])
+            monitor = Monitoring(mod=mod)
+            out = monitor.fit(y=df_simulated["y"], bilateral=False)
             predictive_smooth = out.get('smooth')
 
             qk = predictive_smooth.get('predictive')['qk']
@@ -104,8 +104,8 @@ class TestMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = Monitoring(mod=mod, bilateral=True)
-            out = monitor.fit(y=df_simulated["y"])
+            monitor = Monitoring(mod=mod)
+            out = monitor.fit(y=df_simulated["y"], bilateral=True)
             predictive_smooth = out.get('smooth')
 
             qk = predictive_smooth.get('predictive')['qk']
@@ -115,3 +115,55 @@ class TestMonitoring(unittest.TestCase):
 
         self.assertTrue(all(variance_cond), True)
         self.assertTrue(all(qk), True)
+
+    def test__unilateral_level_in_regression(self):
+        """Test unilateral level model with automatic monitor in regression."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [], "mean_shift": [], "var_shift": []})
+
+        # Define model
+        a0 = np.array([100, 0, 1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, n0=1, s0=.1, delVar=0.98, ntrend=2, nregn=1,
+                  delregn=.98, deltrend=0.95)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], X=df_simulated[["x1"]],
+                          bilateral=False, prior_length=20,
+                          h=4, tau=0.135, change_var=[100, 1, 1])
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+
+    def test__bilateral_level_in_regression(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [], "mean_shift": [], "var_shift": []})
+
+        # Define model
+        a0 = np.array([100, 0, -1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=1, delregn=.98, deltrend=0.9)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated.y, X=df_simulated[["x1"]],
+                          bilateral=True, prior_length=1, h=4, tau=0.135,
+                          change_var=[10, 1, 1])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
