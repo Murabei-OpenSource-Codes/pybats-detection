@@ -18,7 +18,7 @@ class Intervention:
 
     def __init__(self, mod: pybats.dglm.dlm, smooth: bool = True,
                  interval: bool = True, level: float = 0.05):
-        """Manual intervention analysis.
+        """Bayesian Intervention analysis.
 
         Perform intervention analysis on Dynamic Linear Models from objects of
         class `pybats.dglm.dlm`.
@@ -50,7 +50,8 @@ class Intervention:
         self._level = level
         self._smooth = smooth
 
-    def fit(self, y: pd.Series, interventions: List):
+    def fit(self, y: pd.Series, X: pd.DataFrame = None,
+            interventions: List = []):
         """Perform the fit with manual intervention.
 
         Filtering and smoothing distribution with manual intervention on
@@ -60,6 +61,9 @@ class Intervention:
         ----------
         y : pd.Series
             Observed values of time series.
+        X : pd.DataFrame
+            Observed values of fixed covariates with dimension `p` by `n`,
+            where `p` is the number of covariates.
         interventions : List
             List of dictionaries with intervention parameters. The dictionary
             must have the following keys:
@@ -69,16 +73,31 @@ class Intervention:
                 `noise`, and `subjective`.
                 - `parameters`: the parameters and theirs values to change.
 
-                For `variance` type the parameter is `v_shift` and the
-                values choices are: "ignore" or a double to increase or
-                decrease.
+                The `variance` intervention type changes the observation
+                variance, s_t. The only parameter is `v_shift`, which the
+                possible values are: a character named `ignore` meaning simply
+                treating y_t as an outlier and ignore it (the same as
+                increase to infinity the observation variance) or a numeric
+                value, v_t, to sum the current value of s_t.
 
-                For `noise` type  the parameters are `h_shift` and `H_shift`
-                indicating the change in state mean and variance. Each
-                parameter must be a `np.array` object with the values to change
-                for the mean and variance, respectively.
+                Other intervention type is specified by `noise` option, which
+                is the additional evolution noise intervention.
+                Its parameters are `h_shift` and `H_shift` that reflect,
+                respectively, a shit on the prior mean and an inflation in
+                uncertainty through the prior covariance matrix.
+                `h_shift` and `H_shift` must be a np.ndarray vector and
+                matrix with the corresponding same dimension of the state
+                parameter, respectively.
+                If any of the parameters, `h_shift` and `H_shift`, are not
+                specify, then the current values of mean vector or covariance
+                matrix are not alter.
 
-                For `subjective` type the parameters are `R_star`
+                When the `subjective` option is chosen the arbitrary subjective
+                intervention is perform. The parameters are 'a_star' and
+                `R_star` that change the current prior mean vector and
+                covariance matrix from those one specified in the dictionary.
+                As well as in `noise` option `a_star` and `R_star` follows the
+                same structure of 'h_shift' and `H_shift`, respectively.
 
                 The difference between `noise` and `subjective`, is that the
                 noise increase/decrease the mean or variance of the state
@@ -110,9 +129,14 @@ class Intervention:
         [2] West, M., Harrison, J., 1989. Subjective intervention in formal
         models. Journal of Forecasting 8, 33–53.
         """
+        n = len(y)
+        # Create a None vector when there are no regression covariates
+        if X is None:
+            X = pd.DataFrame(np.array([None]*(n+1)).reshape(-1, 1))
+
         # Data and model
         pd_y = y.copy()
-        n = len(pd_y)
+        pd_X = X.copy()
 
         # Dictionaries to keep state and predictive parameters
         dict_predictive = {
@@ -127,6 +151,7 @@ class Intervention:
         for t in range(0, n):
             which_intervention = "nothing"
             self._y_cur = pd_y.values[t]
+            Xt = pd_X.values[t, :]
             time_interventions = list(
                 map(lambda x: x["time_index"] - 1, interventions))
             if t in time_interventions:
@@ -141,7 +166,8 @@ class Intervention:
                 which_intervention = ", ".join(which)
 
             # Get mean and variance one step ahead of forecast distribution
-            ft, qt = self._mod.forecast_marginal(k=1, state_mean_var=True)
+            ft, qt = self._mod.forecast_marginal(
+                k=1, X=Xt, state_mean_var=True)
             ft = ft[0][0]
             qt = qt[0][0]
 
@@ -151,7 +177,7 @@ class Intervention:
             dict_state_parms["posterior"]["s"].append(self._mod.s)
 
             # Update model
-            self._mod.update(y=self._y_cur)
+            self._mod.update(y=self._y_cur, X=Xt)
 
             # Saving state parameters
             dict_state_parms["posterior"]["m"].append(self._mod.m)
@@ -181,8 +207,14 @@ class Intervention:
         t_index = np.arange(0, len(df_posterior) / n_parms) + 1
         df_posterior["t"] = np.repeat(t_index, n_parms)
         df_posterior["t"] = df_posterior["t"].astype(int)
+        df_posterior = df_posterior.merge(
+            df_predictive[['t', 'df']], on="t", how="left",
+            validate="many_to_one")
+
         df_posterior = df_posterior[
-            ["t", "parameter", "mean", "variance"]].copy()
+            ["t", "parameter", "mean", "variance", "df"]].copy()
+        df_posterior = df_posterior.sort_values(
+            ["parameter", "t"]).reset_index(drop=True)
 
         if self._interval:
             df_predictive["ci_lower"] = stats.t.ppf(
@@ -195,12 +227,12 @@ class Intervention:
                 scale=np.sqrt(df_predictive["q"].values))
 
             df_posterior["ci_lower"] = stats.t.ppf(
-                q=self._level/2, df=df_posterior["t"].values + 1,
+                q=self._level/2, df=df_posterior["df"].values,
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
             df_posterior["ci_upper"] = stats.t.ppf(
                 q=1-self._level/2,
-                df=df_posterior["t"].values + 1,
+                df=df_posterior["df"].values,
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
