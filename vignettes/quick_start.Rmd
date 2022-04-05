@@ -10,13 +10,19 @@ options(digits = 4, prompt = ">>> ", continue = ">>> ", width = 70,
 library(reticulate)
 use_virtualenv(virtualenv = "pybats_detection",required = TRUE)
 knitr::opts_chunk$set(
-   echo = TRUE, message = FALSE, warning = FALSE,
+   echo = TRUE, message = FALSE, warning = FALSE, fig.pos = "H",
    fig.align = "center", prompt = TRUE, tidy = TRUE)
 ```
 
 # Step 0: Install `pybats-detection`
 
-Use:
+For the stable version use:
+
+```{bash, eval = FALSE}
+pip install pybats-detection
+```
+
+For the development version use:
 
 ```{bash, eval = FALSE}
 git clone git@github.com:Murabei-OpenSource-Codes/pybats-detection.git pybats-detection
@@ -164,15 +170,16 @@ mod.get_coef()
 ## Step 4: Initialize the `Monitoring` class
 
 ```{python}
-monitor = Monitoring(mod=mod, bilateral=True, prior_length=40)
+monitor = Monitoring(mod=mod)
 ```
 
 ## Step 6: Use the method `fit`
 
 ```{python fit-monitor}
-results = monitor.fit(y=telephone_calls["average_daily_calls"], h=4,
-                      tau=0.135, change_var=[6, 2], type="location",
-                      distr="normal", verbose=True)
+results = monitor.fit(y=telephone_calls["average_daily_calls"],
+                      bilateral=True, prior_length=40, h=4,
+                      tau=0.135, change_var=[6, 2], distr_type="location",
+                      distr_fam="normal", verbose=True)
 ```
 
 ## Step 7: Examine the results
@@ -201,5 +208,3 @@ plt.xlabel("Time")
 plt.ylabel("Average daily calls")
 plt.show()
 ```
-
-
