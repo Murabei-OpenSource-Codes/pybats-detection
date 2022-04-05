@@ -93,4 +93,73 @@ class TestSmoothing(unittest.TestCase):
         smooth = Smoothing(mod=mod)
         dict_results = smooth.fit(y=air_passengers["total"])
         data_posterior = dict_results.get("filter").get("posterior")
+        data_posterior_smooth = dict_results.get("smooth").get("posterior")
         self.assertTrue((data_posterior["parameter"] == "Sum Seas 1").any())
+
+        expected_cols = ["t", "parameter", "mean", "variance", "df",
+                         "ci_lower", "ci_upper"]
+        self.assertEqual(list(data_posterior.columns), expected_cols)
+        self.assertEqual(list(data_posterior_smooth.columns), expected_cols)
+
+    def test__one_regressor(self):
+        """Test the smooth with one regressor."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [30], "mean_shift": [10], "var_shift": [1]})
+
+        # Define model
+        a0 = np.array([100, 0, -1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=1, delregn=.98, deltrend=0.95)
+
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=df_simulated["y"], X=df_simulated[["x1"]])
+        filter_posterior = dict_results.get("filter").get("posterior")
+        smooth_posterior = dict_results.get("smooth").get("posterior")
+
+        t100_filter_posterior = filter_posterior[filter_posterior.t == 100]
+        t100_smooth_posterior = smooth_posterior[smooth_posterior.t == 100]
+
+        t100_filter_posterior.reset_index(inplace=True, drop=True)
+        t100_smooth_posterior.reset_index(inplace=True, drop=True)
+
+        self.assertTrue(t100_filter_posterior.equals(t100_smooth_posterior))
+
+    def test__two_regressor(self):
+        """Test the smooth with two regressor."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [30], "mean_shift": [10], "var_shift": [1]})
+        df_simulated["x2"] = df_simulated["x1"] + np.random.normal(2, 1, 100)
+
+        # Define model
+        a0 = np.array([100, 0, -1, 1])
+        R0 = np.eye(4)
+        np.fill_diagonal(R0, val=100)
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=2, delregn=.98, deltrend=0.95)
+
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=df_simulated["y"],
+                                  X=df_simulated[["x1", "x2"]])
+        filter_posterior = dict_results.get("filter").get("posterior")
+        smooth_posterior = dict_results.get("smooth").get("posterior")
+
+        t100_filter_posterior = filter_posterior[filter_posterior.t == 100]
+        t100_smooth_posterior = smooth_posterior[smooth_posterior.t == 100]
+
+        t100_filter_posterior.reset_index(inplace=True, drop=True)
+        t100_smooth_posterior.reset_index(inplace=True, drop=True)
+
+        self.assertTrue(t100_filter_posterior.equals(t100_smooth_posterior))
