@@ -52,7 +52,7 @@ out_no_int = smooth.fit(y=cp6["sales"])
 dict_filter_no_int = out_no_int.get("filter").get("predictive")
 ```
 
-```{r plot-fit-cp6-filter-no-intervention, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credibility interval", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+```{r plot-fit-cp6-filter-no-intervention, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credible interval", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
 data_predictive = py$dict_filter_no_int 
 data_predictive$time = df_cp6$time
 
@@ -71,7 +71,7 @@ data_predictive %>%
   colorspace::scale_color_discrete_divergingx()
 ```
 
-Note that until November 1955 the forecast distribution was quite acceptable, the credibility interval was relatively small and the errors was were distributed around zero and inside the interval. But with the jump in December 1955 the level rises dramatically, the biggest problem is not the model's inability to efficiently predict this point, but the influence it has on future predictions. Note that for most of the year 1956 the predicted sales overestimation the real sales, giving a cluster of negative errors $(y_t - f_t)$. In early 1957 another jump was observed, but in this case, it was accompanied by a regime change. And this has great impact in the amplitude of the credibility intervals. In early 1958 another regime change, followed by a change in grow, that is not properly modeled since from August 1958 to January 1960 all errors were negative with the exception of July 1959. 
+Note that until November 1955 the forecast distribution was quite acceptable, the credible interval was relatively small and the errors was were distributed around zero and inside the interval. But with the jump in December 1955 the level rises dramatically, the biggest problem is not the model's inability to efficiently predict this point, but the influence it has on future predictions. Note that for most of the year 1956 the predicted sales overestimation the real sales, giving a cluster of negative errors $(y_t - f_t)$. In early 1957 another jump was observed, but in this case, it was accompanied by a regime change. And this has great impact in the amplitude of the credible intervals. In early 1958 another regime change, followed by a change in grow, that is not properly modeled since from August 1958 to January 1960 all errors were negative with the exception of July 1959. 
 
 ## Fit With Intervention
 
@@ -210,7 +210,7 @@ out_int = manual_interventions.fit(
 dict_filter_int = out_int.get("filter").get("predictive")
 ```
 
-```{r plot-fit-cp6-filter-intervention, echo=FALSE, fig.cap="Mean response for filtered predictive distribution with $95\\%$ credibility interval and ideal interventions", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+```{r plot-fit-cp6-filter-intervention, echo=FALSE, fig.cap="Mean response for filtered predictive distribution with $95\\%$ credible interval and ideal interventions", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
 data_predictive = py$dict_filter_int 
 data_predictive$time = df_cp6$time
 

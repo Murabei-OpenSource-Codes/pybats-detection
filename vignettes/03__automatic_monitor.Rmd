@@ -7,28 +7,125 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 # Automatic Monitoring
 
 The automatic monitoring method sequentially evaluate the forecasting activity to
-detect breakdowns, based on Bayes factor. 
+detect breakdowns, based on Bayes factor for two models $M_0$ versus $M_1$ with 
+same mathematical structure, differing only through the values for $\boldsymbol{\theta}_t$ or simply the discount factors. Let $M_0$ be a standard DLM
+without intervention and $M_1$ and alternative model that is introduced to provide
+assessment of $M_0$ by comparison. The Bayes' factor for the observed value $y_t$
+is given by
 
-Again with the CP6 data, the automatic monitoring can be done using the 
-`Monitoring` class. 
+$$
+H_t = p_0(y_t \vert D_{t-1}) / p_1(y_t \vert D_{t-1}),
+$$
+where $p_0$ and $p_1$ are the predictive densities at time $t$ for $M_0$ and 
+$M_1$.If $H_t$ is small then the $M_1$ model is preferred. For $k=1, \dots, t$ last consecutive observations $y_t, y_{t-1}, y_{t-k+1}$
+the local Bayes factor is given by 
+$$
+H_t(k) = \prod_{r=t-k+1}^t H_r = \frac{p_0 (y_t, y_{t-1}, \dots, y_{t-k+1})}{p_1 (y_t, y_{t-1}, \dots, y_{t-k+1})}.
+$$
+and the cumulative Bayes factor $(L_t)$ is
+$$
+L_t = \min_{1\leq k \leq t} H_t(k), \\
+$$
+the minimum at time $t$ is taken at $k=l_t$, with $L_t = H_t(l_t)$ and $l_t$ 
+being a integer given by
+$$
+l_t = (1+l_{t-1}) I(L_{t-1} < 1) + I(L_{t-1} \geq 1),
+$$
+where $I(\cdot)$ is a indicator function. 
 
-```{python fit-level-change-data}
-a = np.array([600, 1])
-R = np.array([[100, 0], [0, 25]])
-mod = dlm(a, R, ntrend=2, deltrend=[0.90, 0.98])
+Basically, $H_t$ is initially used to 
+indicate if $y_t$ is a outlier when $H_t < \tau$ (which represent preference for $M_1$).
+However a small Bayes factor may indicate the start of a regime change, in this case
+we need to accumulate evidences. For this $L_t$ and $l_t$ are used. The automatic
+detection is done following the steps
+
+* If $H_t \leq \tau$, then $y_t$ is a outlier and is omitted from the analysis.
+* If $H_t > \tau$, we must look at $L_t$ for cumulative evidence against $M_0$. 
+    + If $L_t < \tau$ or $l_t > 2$ then a parametric chance is detected $M_1$ is adopted.
+
+It is also possible to consider two alternative models $M_1$ and $M_2$, this is useful
+for identification of outliers/regime change in two directions. 
+
+## Telephone Calls 
+
+To illustrate the performance of the monitoring we'll use the monthly average daily 
+telephone calls to Cincinnati directory assistance time series, from January 1962 to December 1973. The data is given bellow. 
+
+```{python load-telephone_calls}
+calls = load_telephone_calls()
+```
+
+```{r plot-calls, echo=FALSE, fig.cap="Average daily telephone calls to Cincinnati directory assistance", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+df_calls <- py$calls %>% 
+  mutate(time = as.Date(time))
+p_calls <- ggplot(df_calls, aes(x = time, y = average_daily_calls)) +
+  geom_point(size = 3) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  labs(x = "Month/Year", y = "Sales") + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20))
+p_calls
+```
+
+The automatic monitoring can be done 
+using the `Monitoring` class on objects of class `pybats.dglm.dlm`.
+
+```{python fit-level-change-data-monitoring-class}
+a = np.array([300, 0])
+R = np.eye(2)
+np.fill_diagonal(R, val=[100])
+mod = dlm(a, R, ntrend=2, deltrend=0.95)
 
 # Fit with monitoring
-monitor = Monitoring(mod=mod, bilateral=False)
-fit_monitor = monitor.fit(y=cp6["sales"], h=4, tau=0.135, change_var=[100])
+monitor = Monitoring(mod=mod, prior_length = 20, bilateral = True, 
+smooth = True, interval = True, level = 0.05)
+```
+
+```{python fit-level-change-data-monitoring-class-telephone, echo=FALSE}
+# Fit with monitoring
+smooth = Smoothing(mod=mod)
+smooth_fit = smooth.fit(y=calls["average_daily_calls"])
+filter_df = smooth_fit.get('filter').get('predictive')
+```
+
+where 
+
+
+* `mod`: A DLM from `pybats.dglm.dlm`; 
+* `bilateral`: A Boolean indicating if a bilateral monitoring should be performed
+* `prior_length`: A integer that indicates the number of prior observations without monitoring; 
+* `smooth`: a Boolean indicating if smooth moments should be computed; 
+* `interval`: a Boolean indicating if credible intervals should be calculated; 
+* `level`: A number between 0 and 1 indicating the probability level of the
+            credible interval.
+
+The `.fit` method will perform the monitoring steps by the following arguments
+
+
+* `h`: Value of change in the scale or location of the predictive  distribution.
+* `tau`: The threshold to compare de Bayes factor.
+* `change`: is a list of values to increase the uncertainty on state space parameter by multiplying the prior covariance matrix, $\mathbf{R}_t$, when the monitor detects potential outlier or parametric change. If length of change var is different to number of model parameters, then the covariance matrix is multiplied by the first value in the List. The covariance terms are multiplied by the minimum value in `change var`.
+
+By default we'll use `tau=0.135` and `h=4`. For more details see West and Harrison.
+A summary for the fit will be automatically printed, information regarding what was detected (outlier or parametric change), values for $H_t$, $L_t$ and $l_t$. The
+result will be a dictionary with same structure presented in the smoothing section
+
+```{python fit-level-change-data-monitoring-fit}
+fit_monitor = monitor.fit(y=calls["average_daily_calls"], 
+h=4, tau=0.135, change_var=[10, 2])
 forecast_df = fit_monitor.get("filter").get("predictive")
 ```
-```{r plot-fit-cp6-filter-monitor, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credibility interval", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
-df_cp6 <- py$cp6 %>% mutate(time = as.Date(time))
 
+
+```{r plot-fit-cp6-filter-monitor, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credible interval with and without monitor", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
+df_calls = py$calls %>% mutate(time = as.Date(time))
 data_predictive = py$forecast_df 
-data_predictive$time = df_cp6$time
+data_filter = py$filter_df 
+data_predictive$time = df_calls$time
+data_filter$time = df_calls$time
 
-data_predictive %>%
+p1 = data_predictive %>%
   ggplot(aes(x = time, y = y)) +
   geom_point(size = 3) +
   geom_line(aes(y = f), size = 0.8) +
@@ -41,4 +138,22 @@ data_predictive %>%
   theme(axis.text=element_text(size=20), 
   axis.title=element_text(size=20)) +
   colorspace::scale_color_discrete_divergingx()
+
+p2 = data_filter %>%
+  ggplot(aes(x = time, y = y)) +
+  geom_point(size = 3) +
+  geom_line(aes(y = f), size = 0.8) +
+  geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+              alpha=.25, colour = 'grey40') +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_x_date(breaks = scales::pretty_breaks(8), date_labels = "%b/%Y") +
+  theme(legend.position = "top") +
+  xlab('Month/Year') + ylab('Sales') + 
+  theme(axis.text=element_text(size=20), 
+  axis.title=element_text(size=20)) +
+  colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
 ```

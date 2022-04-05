@@ -2,6 +2,9 @@
 title: "`pybats-detection`: A python package for outlier and structural changes detection in time series analysis"
 author: "André Menezes and Eduardo Gabriel"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  pdf_document: 
+    keep_tex: yes
 ---
 
 ```{r setup, include=FALSE}
