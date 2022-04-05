@@ -122,7 +122,6 @@ class RandomDLM():
             Start values for the covariates parameters.
         dict_shift : dict
             Potential changes at mean and variance of state level parameter.
-
         Returns
         -------
         pd.DataFrame
@@ -132,7 +131,6 @@ class RandomDLM():
                 - `level`: the simulate level values.
                 - `x[p]`: the values of covariate p.
                 - `theta__x[p]`: the simulate parameter values of covariate p.
-
         """
         p = X.shape[1]
         W1 = self._W[0]
@@ -151,8 +149,8 @@ class RandomDLM():
                 omega = np.random.normal(
                     level_mean, np.sqrt(level_var * W1), 1)
 
-            betas[t, :] = betas[t-1, :] + np.random.normal(0, np.sqrt(W2), 2)
-            mu[t] = (mu[t-1] + np.sum(X[t - 1, :] * betas[t - 1, :]) +
+            betas[t, :] = betas[t-1, :] + np.random.normal(0, np.sqrt(W2), p)
+            mu[t] = (start_level + np.sum(X[t - 1, :] * betas[t - 1, :]) +
                      np.random.normal(0, np.sqrt(W1), 1) + omega)
 
         y = np.random.normal(mu, np.sqrt(self._V), self._n)
