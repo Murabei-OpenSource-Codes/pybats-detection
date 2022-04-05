@@ -46,7 +46,8 @@ class Smoothing:
         self._interval = interval
         self._level = level
 
-    def fit(self, y: pd.Series, dict_state_parms: dict = None):
+    def fit(self, y: pd.Series, X: pd.DataFrame = None,
+            dict_state_parms: dict = None):
         """Perform the backward smoother.
 
         That is, performs retrospective estimation for the state space
@@ -59,26 +60,40 @@ class Smoothing:
         ----------
         y : pd.Series
             Observed values of time series.
+        X : pd.DataFrame
+            Observed values of fixed covariates with dimension `p` by `n`,
+            where `p` is the number of covariates.
         dict_state_parms : dict
-            A dictionary with the posterior (m and C) and prior (a and R)
-            moments for the state space parameters along time. If `None`,
-            perform the forward filtering first, then the backward smoother.
+            A dictionary contains the historical posterior and prior momments
+            with the following keys:
+            ```
+            dict_state_parms = {
+                "prior": {"a": [], "R": []},
+                "posterior": {"m": [], "C": [], "df": [], "s": []}
+            }
+            ```
+            where `m` and `C` are the posterior mean and covariance matrix,
+            respectively, 'df' is the degree of freedom, `s` is the
+            observational variance and `a` and `R` are the prior mean and
+            covariance matrix, respectively. If `dict_state_parms` is `None`
+            the forward filtering is perform before in order to obtain the
+            posterior and prior moments values.
 
         Returns
         -------
-        dict. It contains the following entries:
+        dict. It contains the following keys:
+            - `model`: the updated pybats.dglm.dlm object.
             - `smooth`: dictionary with:
                 - `posterior`: pd.DataFrame with the smooth posterior moments.
                 - `predictive`: pd.DataFrame with the smooth one-step ahead
                 predictive moments.
 
-            If `dict_state_parms` is not None, then the dict also contains:
+            If `dict_state_parms` is None, then the dict also contains:
             - `filter`: dictionary with:
                 - `posterior`: pd.DataFrame with the filtering posterior
                 moments.
                 - `predictive`: pd.DataFrame with the one-step ahead predictive
                 moments.
-            - `model`: the updated pybats.dglm.dlm object.
 
         References
         ----------
@@ -88,7 +103,13 @@ class Smoothing:
         [2] Prado, R.; West, M. Time Series Modeling, Computation, and
         Inference. CRC Press, 2010.
         """
+        n = len(y)
+        # Create a None vector when there are no regression covariates
+        if X is None:
+            X = pd.DataFrame(np.array([None]*(n+1)).reshape(-1, 1))
+
         self._pd_y = y.copy()
+        self._pd_X = X.copy()
         self._dict_state_parms = dict_state_parms
 
         if self._dict_state_parms:
@@ -127,13 +148,13 @@ class Smoothing:
         """
         # Data and model
         pd_y = self._pd_y.copy()
+        pd_X = self._pd_X.copy()
         c_mod = copy.deepcopy(self._mod)
         n = len(pd_y)
 
         # Dictionaries to keep state and predictive parameters
         dict_predictive = {
-            "t": [], "y": [], "f": [], "q": [], "df": [],
-            "s": []}
+            "t": [], "y": [], "f": [], "q": [], "df": [], "s": []}
         dict_state_parms = {
             "prior": {"a": [], "R": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
@@ -142,8 +163,10 @@ class Smoothing:
         # Perform the filtering and keep the paramters
         for t in range(0, n):
             yt = pd_y.values[t]
+            Xt = pd_X.values[t, :]
+
             # Get mean and variance one step ahead of forecast distribution
-            ft, qt = c_mod.forecast_marginal(k=1, state_mean_var=True)
+            ft, qt = c_mod.forecast_marginal(k=1, X=Xt, state_mean_var=True)
             ft = ft[0][0]
             qt = qt[0][0]
 
@@ -154,7 +177,7 @@ class Smoothing:
             dict_state_parms["posterior"]["s"].append(c_mod.s)
 
             # Update model
-            c_mod.update(y=yt)
+            c_mod.update(y=yt, X=Xt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(c_mod.m)
@@ -183,23 +206,34 @@ class Smoothing:
         t_index = np.arange(0, len(df_posterior) / n_parms) + 1
         df_posterior["t"] = np.repeat(t_index, n_parms)
         df_posterior["t"] = df_posterior["t"].astype(int)
+        df_posterior = df_posterior.merge(
+            df_predictive[['t', 'df']], on="t", how="left",
+            validate="many_to_one")
+
+        df_posterior = df_posterior[
+            ["t", "parameter", "mean", "variance", "df"]].copy()
+        df_posterior = df_posterior.sort_values(
+            ["parameter", "t"]).reset_index(drop=True)
 
         if self._interval:
             df_predictive["ci_lower"] = stats.t.ppf(
-                q=self._level/2, df=df_predictive["df"].values,
+                q=self._level/2,
+                df=df_predictive["df"].values,
                 loc=df_predictive["f"].values,
                 scale=np.sqrt(df_predictive["q"].values))
             df_predictive["ci_upper"] = stats.t.ppf(
-                q=1-self._level/2, df=df_predictive["df"].values,
+                q=1-self._level/2,
+                df=df_predictive["df"].values,
                 loc=df_predictive["f"].values,
                 scale=np.sqrt(df_predictive["q"].values))
             df_posterior["ci_lower"] = stats.t.ppf(
-                q=self._level/2, df=df_posterior["t"].values[-1] + 1,
+                q=self._level/2,
+                df=df_posterior["df"].values,
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
             df_posterior["ci_upper"] = stats.t.ppf(
                 q=1-self._level/2,
-                df=df_posterior["t"].values[-1] + 1,
+                df=df_posterior["df"].values,
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
@@ -245,7 +279,7 @@ class Smoothing:
         qk = F.T @ Rk @ F
         dict_smooth_parms = {
             "t": [T_end], "ak": [ak], "Rk": [Rk], "fk": [fk[0][0]],
-            "qk": [qk[0][0]], "df": df}
+            "qk": [qk[0][0]], "df": np.flip(df)}
 
         # Perform smoothing
         for k in range(1, T_end):
@@ -268,6 +302,11 @@ class Smoothing:
             dict_smooth_parms["qk"].append(qk[0][0])
             dict_smooth_parms["t"].append(T_end-k)
 
+        # Organize the predictive smooth parameters
+        dict_filtered = {key: dict_smooth_parms[key] for key in (
+            dict_smooth_parms.keys() & {"t", "fk", "qk", "df"})}
+        df_predictive_smooth = pd.DataFrame(dict_filtered)
+
         # Organize the posterior smooth parameters in pd.DataFrame
         df_posterior_smooth = tidy_parameters(
             dict_parameters=dict_smooth_parms,
@@ -281,17 +320,17 @@ class Smoothing:
             ['parameter', 'index'])
         df_posterior_smooth["t"] = np.tile(dict_smooth_parms["t"], n_parms)
 
-        # Predictive smooth parameters
-        dict_filtered = {key: dict_smooth_parms[key] for key in (
-            dict_smooth_parms.keys() & {"t", "fk", "qk"})}
-        df_predictive_smooth = pd.DataFrame(dict_filtered)
-        df_predictive_smooth['df'] = df_predictive_smooth['t']
+        df_posterior_smooth = df_posterior_smooth.merge(
+            df_predictive_smooth[['t', 'df']], on="t", how="left",
+            validate="many_to_one")
+        df_posterior_smooth = df_posterior_smooth[
+            ["t", "parameter", "mean", "variance", "df"]].copy()
 
         # Arrange DataFrames by time
         df_predictive_smooth = df_predictive_smooth.sort_values(
             ["t"]).reset_index(drop=True)
         df_posterior_smooth = df_posterior_smooth.sort_values(
-            ["parameter", "t"]).reset_index(drop=True).drop('index', axis=1)
+            ["parameter", "t"]).reset_index(drop=True)
 
         if self._interval:
             df_predictive_smooth["ci_lower"] = stats.t.ppf(
