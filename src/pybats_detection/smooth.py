@@ -334,22 +334,22 @@ class Smoothing:
 
         if self._interval:
             df_predictive_smooth["ci_lower"] = stats.t.ppf(
-                q=self._level/2, df=df_predictive_smooth["df"].values[-1] + 1,
+                q=self._level/2, df=df_predictive_smooth["df"].values[-1],
                 loc=df_predictive_smooth["fk"].values,
                 scale=np.sqrt(df_predictive_smooth["qk"].values))
             df_predictive_smooth["ci_upper"] = stats.t.ppf(
                 q=1-self._level/2,
-                df=df_predictive_smooth["df"].values[-1] + 1,
+                df=df_predictive_smooth["df"].values[-1],
                 loc=df_predictive_smooth["fk"].values,
                 scale=np.sqrt(df_predictive_smooth["qk"].values))
 
             df_posterior_smooth["ci_lower"] = stats.t.ppf(
-                q=self._level/2, df=df_posterior_smooth["t"].values[-1] + 1,
+                q=self._level/2, df=df_posterior_smooth["df"].values[-1],
                 loc=df_posterior_smooth["mean"].values,
                 scale=np.sqrt(df_posterior_smooth["variance"].values))
             df_posterior_smooth["ci_upper"] = stats.t.ppf(
                 q=1-self._level/2,
-                df=df_posterior_smooth["t"].values[-1] + 1,
+                df=df_posterior_smooth["df"].values[-1],
                 loc=df_posterior_smooth["mean"].values,
                 scale=np.sqrt(df_posterior_smooth["variance"].values))
 
