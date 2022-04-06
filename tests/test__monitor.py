@@ -4,6 +4,7 @@ import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.monitor import Monitoring
+from pybats_detection.loader import load_market_share
 
 
 class TestMonitoring(unittest.TestCase):
@@ -167,3 +168,42 @@ class TestMonitoring(unittest.TestCase):
                           bilateral=True, prior_length=1, h=4, tau=0.135,
                           change_var=[10, 1, 1])
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+
+    def test__bilateral_level_in_regression_market_share(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=y, X=X,
+                          bilateral=True, prior_length=1, h=4, tau=0.135,
+                          change_var=[10, 1, 1, 1])
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)

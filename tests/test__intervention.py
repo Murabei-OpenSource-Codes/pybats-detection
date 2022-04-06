@@ -4,6 +4,7 @@ import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.intervention import Intervention
+from pybats_detection.loader import load_market_share
 
 
 class TestIntervention(unittest.TestCase):
@@ -145,3 +146,49 @@ class TestIntervention(unittest.TestCase):
             interventions=list_interventions)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
         self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))
+
+    def test__subjective_intervention_with_regression_market_share(self):
+        """
+        Test subjective intervention with regressor in market share example.
+        """
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # List with the interventions
+        list_interventions = [{
+            "time_index": 34, "which": ["variance"],
+            "parameters": [
+                {"h_shift": np.array([0, 0, 0, 0]),
+                 "H_shift": np.eye(4)*0.0}]}]
+
+        dlm_intervention = Intervention(mod=mod)
+        out = dlm_intervention.fit(y=y, X=X,
+                                   interventions=list_interventions)
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)

@@ -5,6 +5,7 @@ from pybats.dglm import dlm
 from pybats_detection.smooth import Smoothing
 from pybats_detection.loader import load_air_passengers
 from pybats_detection.random_dlm import RandomDLM
+from pybats_detection.loader import load_market_share
 
 # Generating level data model
 np.random.seed(66)
@@ -163,3 +164,39 @@ class TestSmoothing(unittest.TestCase):
         t100_smooth_posterior.reset_index(inplace=True, drop=True)
 
         self.assertTrue(t100_filter_posterior.equals(t100_smooth_posterior))
+
+    def test__bilateral_level_in_regression_market_share(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # Fit with monitoring
+        monitor = Smoothing(mod=mod)
+        out = monitor.fit(y=y, X=X)
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)
