@@ -40,3 +40,15 @@ def load_air_passengers():
     tmp = pd.read_csv(data_dir + 'air_passengers.csv')
     tmp["time"] = pd.to_datetime(tmp["time"])
     return tmp
+
+
+def load_market_share():
+    """
+    Load Market Share time series.
+
+    Weekly market share for a consumer product, January 1990 to December 1991.
+    """
+    data_dir = os.path.dirname(os.path.abspath(__file__)) + '/data/'
+    tmp = pd.read_csv(data_dir + 'pole_market_share.csv')
+    tmp['time'] = pd.to_datetime(tmp["time"])
+    return tmp
