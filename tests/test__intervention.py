@@ -4,6 +4,7 @@ import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.intervention import Intervention
+from pybats_detection.loader import load_market_share
 
 
 class TestIntervention(unittest.TestCase):
@@ -112,3 +113,82 @@ class TestIntervention(unittest.TestCase):
             y=df_simulated["y"], interventions=list_interventions)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
         self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))
+
+    def test__subjective_intervention_with_regression(self):
+        """Test subjective intervention with regressor."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [30], "mean_shift": [10], "var_shift": [1]})
+
+        # Define model
+        a0 = np.array([100, 0, -1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, n0=1, s0=.1, ntrend=2, nregn=1,
+                  delregn=.98, deltrend=0.95)
+
+        # List with the interventions
+        list_interventions = [{
+            "time_index": 31, "which": ["noise"],
+            "parameters": [
+                {"h_shift": np.array([110, 0, 0]),
+                 "H_shift": np.eye(3)*0.0}]}]
+
+        dlm_intervention = Intervention(mod=mod)
+        out = dlm_intervention.fit(
+            y=df_simulated["y"], X=df_simulated[["x1"]],
+            interventions=list_interventions)
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+        self.assertTrue(np.all(out["smooth"]["posterior"]["variance"] > 0))
+
+    def test__subjective_intervention_with_regression_market_share(self):
+        """
+        Test subjective intervention with regressor in market share example.
+        """
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # List with the interventions
+        list_interventions = [{
+            "time_index": 34, "which": ["variance"],
+            "parameters": [
+                {"h_shift": np.array([0, 0, 0, 0]),
+                 "H_shift": np.eye(4)*0.0}]}]
+
+        dlm_intervention = Intervention(mod=mod)
+        out = dlm_intervention.fit(y=y, X=X,
+                                   interventions=list_interventions)
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)

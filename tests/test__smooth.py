@@ -5,6 +5,7 @@ from pybats.dglm import dlm
 from pybats_detection.smooth import Smoothing
 from pybats_detection.loader import load_air_passengers
 from pybats_detection.random_dlm import RandomDLM
+from pybats_detection.loader import load_market_share
 
 # Generating level data model
 np.random.seed(66)
@@ -93,4 +94,109 @@ class TestSmoothing(unittest.TestCase):
         smooth = Smoothing(mod=mod)
         dict_results = smooth.fit(y=air_passengers["total"])
         data_posterior = dict_results.get("filter").get("posterior")
+        data_posterior_smooth = dict_results.get("smooth").get("posterior")
         self.assertTrue((data_posterior["parameter"] == "Sum Seas 1").any())
+
+        expected_cols = ["t", "parameter", "mean", "variance", "df",
+                         "ci_lower", "ci_upper"]
+        self.assertEqual(list(data_posterior.columns), expected_cols)
+        self.assertEqual(list(data_posterior_smooth.columns), expected_cols)
+
+    def test__one_regressor(self):
+        """Test the smooth with one regressor."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [30], "mean_shift": [10], "var_shift": [1]})
+
+        # Define model
+        a0 = np.array([100, 0, -1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=1, delregn=.98, deltrend=0.95)
+
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=df_simulated["y"], X=df_simulated[["x1"]])
+        filter_posterior = dict_results.get("filter").get("posterior")
+        smooth_posterior = dict_results.get("smooth").get("posterior")
+
+        t100_filter_posterior = filter_posterior[filter_posterior.t == 100]
+        t100_smooth_posterior = smooth_posterior[smooth_posterior.t == 100]
+
+        t100_filter_posterior.reset_index(inplace=True, drop=True)
+        t100_smooth_posterior.reset_index(inplace=True, drop=True)
+
+        self.assertTrue(t100_filter_posterior.equals(t100_smooth_posterior))
+
+    def test__two_regressor(self):
+        """Test the smooth with two regressor."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [30], "mean_shift": [10], "var_shift": [1]})
+        df_simulated["x2"] = df_simulated["x1"] + np.random.normal(2, 1, 100)
+
+        # Define model
+        a0 = np.array([100, 0, -1, 1])
+        R0 = np.eye(4)
+        np.fill_diagonal(R0, val=100)
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=2, delregn=.98, deltrend=0.95)
+
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=df_simulated["y"],
+                                  X=df_simulated[["x1", "x2"]])
+        filter_posterior = dict_results.get("filter").get("posterior")
+        smooth_posterior = dict_results.get("smooth").get("posterior")
+
+        t100_filter_posterior = filter_posterior[filter_posterior.t == 100]
+        t100_smooth_posterior = smooth_posterior[smooth_posterior.t == 100]
+
+        t100_filter_posterior.reset_index(inplace=True, drop=True)
+        t100_smooth_posterior.reset_index(inplace=True, drop=True)
+
+        self.assertTrue(t100_filter_posterior.equals(t100_smooth_posterior))
+
+    def test__bilateral_level_in_regression_market_share(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # Fit with monitoring
+        monitor = Smoothing(mod=mod)
+        out = monitor.fit(y=y, X=X)
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)
