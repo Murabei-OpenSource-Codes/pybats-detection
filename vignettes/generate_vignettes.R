@@ -3,8 +3,9 @@ rm(list = ls())
 rmarkdown::render(input = file.path("vignettes", "pybats_detection.Rmd"),
                   output_file = "pybats_detection",
                   # output_format = rmarkdown::html_document(toc_float = TRUE),
-                  output_format = "latex_document",
-                  # output_format = rmarkdown::pdf_document(toc = TRUE, toc_depth = 4),
+                  # output_format = "latex_document",
+                  output_format = rmarkdown::pdf_document(
+                    toc = TRUE, toc_depth = 4, number_sections = TRUE),
                   clean = TRUE)
 
 rmarkdown::render(input = file.path("vignettes", "quick_start.Rmd"),
