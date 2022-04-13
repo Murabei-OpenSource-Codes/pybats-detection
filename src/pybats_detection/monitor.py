@@ -265,7 +265,8 @@ class Monitoring:
                 mod = copy.deepcopy(lt_model_history[index])
                 mod.R = c_mat * mod.R
                 for i in range(index, t):
-                    ft, qt = mod.forecast_marginal(k=1, state_mean_var=True)
+                    ft, qt = mod.forecast_marginal(k=1, X=pd_X.values[i, :],
+                                                   state_mean_var=True)
                     dict_predictive["f"][i] = ft[0][0]
                     dict_predictive["q"][i] = qt[0][0]
                     mod.update(y=pd_y.values[i], X=pd_X.values[i, :])
@@ -491,7 +492,8 @@ class Monitoring:
                 mod = copy.deepcopy(lt_model_history[index])
                 mod.R = c_mat * mod.R
                 for i in range(index, t):
-                    ft, qt = mod.forecast_marginal(k=1, state_mean_var=True)
+                    ft, qt = mod.forecast_marginal(k=1, X=pd_X.values[i, :],
+                                                   state_mean_var=True)
                     dict_predictive["f"][i] = ft[0][0]
                     dict_predictive["q"][i] = qt[0][0]
                     mod.update(y=pd_y.values[i], X=pd_X.values[i, :])
