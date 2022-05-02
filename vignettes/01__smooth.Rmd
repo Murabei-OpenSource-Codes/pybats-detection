@@ -6,26 +6,33 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 # Smoothing
 
-A brief introduction of the Smoothing class in a simulated example. A time series $\mathbf{Y} = (y_1, \dots, y_T)$ was generated using the 
-`RandomDLM` class which has the arguments (n, V, W): the number of observations, observational variance and state vector variance. This class has three methods that simulate data using different mechanisms:
+To demonstrate the use of the Smoothing class we will start with a simulated example in which a sequence of observations $y_1, \dots, y_t$ were generated following DLM evolution structure given by
+$$
+\begin{aligned}
+y_t &= \textbf{F} \boldsymbol{\theta}_t + \epsilon_t, \quad \epsilon_t \sim N[0, V_t], \\
+\boldsymbol{\theta}_t &= \mathbf{G} \boldsymbol{\theta}_{t-1} + \omega_t, \quad \omega_t \sim N[0, W_t]
+\end{aligned}
+$$
+
+This can be done using the \texttt{RandomDLM} class which has the arguments (n, V, W): the number of observations, observational variance and state vector variance. This
+class has three methods that simulate data using different mechanisms:
 
 * `.level`: dynamic level model; 
-* `.growth`: dynamic growth model;
-* `.level_with_covariates`: dynamic level model where $Y$ is simulated given $X$, a matrix of fixed covariates. 
+* `.growth`: dynamic growth model; 
+* `.level_with_covariates`: dynamic level model where $Y$ is simulated given $Y$, a matrix of fixed covariates. 
 
-For now, we stick with `.level`, simulating $n=100$ observations with both observational and state vector variance equals to one $1$, the starting level is set to $100$. The simulated data is plotted below. 
+For now, we stick with `.level`, simulating $n=100$ observations with both observational and state vector variance equals to one $1$, the starting level is set to $100$. The simulated data is plotted in Figure \autoref{fig:smooth}. 
+
 
 ```{python}
 # Generating level data model
 np.random.seed(66)
 rdlm = RandomDLM(n=100, V=1, W=1)
-df_simulated = rdlm.level(
-    start_level=100,
-    dict_shift={})
+df_simulated = rdlm.level(start_level=100, dict_shift={})
 y = df_simulated["y"]
 ```
 
-```{r, message = FALSE, fig.cap="Simulated data", warnings = FALSE, echo=FALSE, out.width = "90%"}
+```{r smooth, message = FALSE, fig.dim=c(16, 9), fig.cap="Simulated data", warnings = FALSE, echo=FALSE, out.width = "90%"}
 df = py$df_simulated
 df %>% ggplot(aes(x = t, y = y)) +
   geom_point(size = 3) + ylab(' ') + 
@@ -54,39 +61,40 @@ smooth = Smoothing(mod=mod)
 smooth_fit = smooth.fit(y=y)
 ```
 
-This will return a dictionary with 
-moments for: smoothed and filtered predictive distributions and for the posterior distributions of the model components. Each one can be obtained using the  respective key
+This returns a dictionary with the following keys:
 
-```{python, results='hide'}
-smooth_fit.get('smooth').get('predictive')
-smooth_fit.get('smooth').get('posterior')
-smooth_fit.get('filter').get('predictive')
-smooth_fit.get('filter').get('posterior')
-```
+* `model`: the updated `pybats.dglm.dlm` object.
+* `filter`: a dictionary with:
+  - `posterior`: `pandas.DataFrame` with the filtering posterior moments.
+  - `predictive`: `pandas.DataFrame` with the one-step ahead predictive moments.
 
-Below the results for the predictive and posterior smoothed distributions 
+If `smooth` is `True`, then also contains:        
+
+* `smooth`: a dictionary with:
+  - `posterior`: `pandas.DataFrame` with the smooth posterior moments.
+  - `predictive`: `pandas.DataFrame` with the smooth one-step ahead
+                  predictive moments.
 
 ## smoothed predictive
 ```{python, echo=FALSE}
-tab1 = smooth_fit.get('smooth').get('predictive').round(2).head()
-tab2 = smooth_fit.get('smooth').get('posterior').round(2).head()
-tab3 = smooth_fit.get('filter').get('predictive').round(2).head()
-tab4 = smooth_fit.get('filter').get('posterior').round(2).head()
+tab1 = smooth_fit.get('smooth').get('predictive').round(2).head(5)
+tab2 = smooth_fit.get('smooth').get('posterior').round(2).head(5)
+tab3 = smooth_fit.get('filter').get('predictive').round(2).head(5)
+tab4 = smooth_fit.get('filter').get('posterior').round(2).head(5)
 ```
 
-The results for the smoothed predictive distribution consists of: $f_T(-k), q_T(-k)$ and the bounds for the credibility interval (`ci_lower`, `ci_upper`). Given by
-
+The results for the smoothed predictive distribution consists of: $f_T(-k), q_T(-k)$ and the bounds for the credible interval (`ci_lower`, `ci_upper`). Given by
 $$
 f_T(-k) = \mathbf{F}^{'} \mathbf{a}_T(-k), \quad \quad q_T(-k) = \mathbf{F}^{'} \mathbf{R}_T(-k) \mathbf{F}
 $$
-The credibility interval is is obtained from the corresponding smoothed distributions for the mean response of the series. Since $V$ is considered unknown, then 
+The credible interval is is obtained from the corresponding smoothed distributions for the mean response of the series. Since $V$ is considered unknown, then 
 
 $$
 (\mu_T(-k) \vert D_T) \sim T_{n_T}[f_T(-k), q_T(-k)]
 $$
 For this simulated example, the results for the smoothed predictive distribution for the mean response are 
 ```{python, results='hide'}
-smooth_fit.get('smooth').get('predictive').round(2).head()
+smooth_fit.get('smooth').get('predictive').round(2).head(5)
 ```
 
 ```{r, echo=FALSE, results='asis'}
@@ -100,7 +108,7 @@ kable(tab1, caption = 'Smothed predictive distribution results')
 
 as for the filtered distribution 
 ```{python, results='hide'}
-smooth_fit.get('smooth').get('predictive').round(2).head()
+smooth_fit.get('smooth').get('predictive').round(2).head(5)
 ```
 
 ```{r, echo=FALSE, results='asis'}
@@ -125,9 +133,29 @@ predictive_filter_df['y'] = y.copy()
 predictive_smooth_df['y'] = y.copy()
 ```
 
-Plotting the filtered vs smoothed predictive distributions results is possible to see difference, primarily in the length of the credibility interval. 
+Plotting the filtered vs smoothed predictive distributions results is possible to see difference, primarily in the length of the credible interval (see Figure \autoref{fig:smooth-fit-predictive}). 
 
-```{r, echo=FALSE, fig.dim=c(16, 9), out.width = "90%", "plots for smooth simulated example", fig.cap="Mean response for Filtered and Smoothed predictive distributions with $95\\%$ credibility intervals."}
+## smoothed posterior
+The results for the posterior distributions are analogous, where
+
+* parameter: Indicator for the respective state space parameter in $\boldsymbol{\theta}$; 
+* mean: The smoothed posterior distribution mean for time $t=T-k$ ($\mathbf{m}(-k)$); 
+* variance: The smoothed posterior distribution variance for time $t$ ($\mathbf{C}(-k)$).
+* credible interval (`ci_lower`, `ci_upper`): The credible interval obtained from the corresponding smoothed posterior distributions. Since $V$ is considered unknown, then 
+
+$$
+(\boldsymbol{\theta}_{T-k} \vert D_T) \sim T_{n_T}[\mathbf{a}_T(-k), \mathbf{R}_T(-k)].
+$$
+
+```{python, results='hide'}
+smooth_fit.get('smooth').get('posterior').round(2).head(5)
+```
+
+```{r, echo=FALSE, results='asis'}
+kable(tab2, "simple", caption = 'Smothed posterior distribution results')
+```
+
+```{r smooth-fit-predictive, message = FALSE, warnings = FALSE, echo=FALSE, fig.dim=c(16,9), out.width="90%", fig.cap="Mean response for Filtered and Smoothed predictive distributions for each model component with $95\\%$ credible intervals."}
 predictive_filter_df = py$predictive_filter_df 
 predictive_smooth_df = py$predictive_smooth_df 
 posteriori_smooth_df = py$posteriori_smooth_df 
@@ -161,28 +189,9 @@ p2 = predictive_smooth_df %>% filter(t>3) %>%
 plot_grid(p1, p2, ncol=2)
 ```
 
-## smoothed posterior
-The results for the posterior distributions are analogous, where
+In Figure \autoref{fig:smooth-fit-posterior} we plot the results for filtered and smoothed distributions, in this case for each state space parameter. As expected, the smoothed posterior distributions show a less erratic behavior with shorter credible intervals. 
 
-* parameter: Indicator for the respective state space parameter in $\boldsymbol{\theta}$; 
-* mean: The smoothed posterior distribution mean for time $t=T-k$ ($\mathbf{m}(-k)$); 
-* variance: The smoothed posterior distribution variance for time $t$ ($\mathbf{C}(-k)$).
-* credibility interval (`ci_lower`, `ci_upper`): The credibility interval obtained from the corresponding smoothed posterior distributions. Since $V$ is considered unknown, then 
-
-$$
-(\boldsymbol{\theta}_{T-k} \vert D_T) \sim T_{n_T}[\mathbf{a}_T(-k), \mathbf{R}_T(-k)].
-$$
-```{python, results='hide'}
-smooth_fit.get('smooth').get('posterior').round(2).head()
-```
-
-```{r, echo=FALSE, results='asis'}
-kable(tab2, "simple", caption = 'Smothed posterior distribution results')
-```
-
-As before we plot the results for filtered and smoothed distributions, in this case for each state space parameter. As expected, the smoothed posterior distributions show a less erratic behavior with shorter credibility intervals. 
-
-```{r, message = FALSE, warnings = FALSE, echo=FALSE, fig.dim=c(16,9), out.width="90%", fig.cap="Mean response for Filtered and Smoothed posterior distributions for each model component with $95\\%$ credibility intervals."}
+```{r smooth-fit-posterior, message = FALSE, warnings = FALSE, echo=FALSE, fig.dim=c(16,9), out.width="90%", fig.cap="Mean response for Filtered and Smoothed posterior distributions for each model component with $95\\%$ credible intervals."}
 posterior_plot = function(data){
   p = data %>% ggplot(aes(x = t)) +
     geom_line(aes(y = mean), colour = 'dodgerblue4') + ylab(' ') +
@@ -212,10 +221,9 @@ plot_grid(p1, p2, p3, p4)
 
 ## Aplication: AirPassangers dataset
 
-Below is a practical example with the classic Box & Jenkins airline data, 
-Monthly totals of international airline passengers (1949 to 1960). This data has a clear multiplicative seasonality, using a linear model (with additive seasonality) may be a naive approximation for this data. But, just for the sake of comparison between filtered and smoothing we stick with the linear model. 
+Now we'll demonstrate the `Smoothing` class with the classic Box & Jenkins airline data, Monthly totals of international airline passengers (1949 to 1960). The time series is plotted in Figure \autoref{fig:airpassangers-plot}. This data has a clear multiplicative seasonality, using a linear model (with additive seasonality) may be a naive approximation for this data. But, just for the sake of comparison between filtered and smoothing we stick with the linear model. 
 
-```{r echo=FALSE, fig.dim=c(16,9), out.width = "90%", fig.cap="Monthly totals of international airline passengers, 1949 to 1960."}
+```{r airpassangers-plot, echo=FALSE, fig.dim=c(16,9), out.width = "90%", fig.cap="Monthly totals of international airline passengers, 1949 to 1960."}
 data(AirPassengers)
 data_df = data.frame(value=AirPassengers)
 data_df$t = seq(as.Date("1949-01-01"), 
@@ -266,7 +274,7 @@ predictive_filter_df['y'] = y.copy()
 predictive_smooth_df['y'] = y.copy()
 ```
 
-```{r, echo=FALSE, fig.dim=c(16, 9), out.width="90%", "plots for airpassangers example", fig.cap="Mean response for Filtered and Smoothed predictive distributions with $95\\%$ credibility intervals."}
+```{r, echo=FALSE, fig.dim=c(16, 9), out.width="90%", "plots for airpassangers example", fig.cap="Mean response for Filtered and Smoothed predictive distributions with $95\\%$ credible intervals."}
 predictive_filter_df = py$predictive_filter_df 
 predictive_smooth_df = py$predictive_smooth_df 
 posteriori_smooth_df = py$posteriori_smooth_df 
@@ -312,7 +320,7 @@ $$
 where $\mathbf{F}_{seas}^{\prime} = [0,0,1,0,1, 0]$. The results are illustrated below. 
 
 
-```{r, echo=FALSE, fig.dim = c(16, 9), out.width="90%", "components for airpassangers example", fig.cap="Mean response for Filtered and Smoothed posterior distributions for each model component with $95\\%$ credibility intervals."}
+```{r, echo=FALSE, fig.dim = c(16, 9), out.width="90%", "components for airpassangers example", fig.cap="Mean response for Filtered and Smoothed posterior distributions for each model component with $95\\%$ credible intervals."}
 date_posterior_plot = function(data){
   p = data %>% filter(t>='1950-01-01') %>% ggplot(aes(x = t)) +
     geom_line(aes(y = mean), colour = 'dodgerblue4') + ylab(' ') +

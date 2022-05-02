@@ -4,6 +4,7 @@ import numpy as np
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.monitor import Monitoring
+from pybats_detection.loader import load_market_share
 
 
 class TestMonitoring(unittest.TestCase):
@@ -27,8 +28,8 @@ class TestMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = Monitoring(mod=mod, bilateral=False)
-        out = monitor.fit(y=df_simulated["y"])
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], bilateral=False)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__bilateral_level(self):
@@ -48,8 +49,8 @@ class TestMonitoring(unittest.TestCase):
         mod = dlm(a, R, ntrend=1, deltrend=0.90)
 
         # Fit with monitoring
-        monitor = Monitoring(mod=mod, bilateral=False)
-        out = monitor.fit(y=df_simulated["y"])
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], bilateral=False)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__variance_positive_unilateral(self):
@@ -72,8 +73,8 @@ class TestMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = Monitoring(mod=mod, bilateral=False)
-            out = monitor.fit(y=df_simulated["y"])
+            monitor = Monitoring(mod=mod)
+            out = monitor.fit(y=df_simulated["y"], bilateral=False)
             predictive_smooth = out.get('smooth')
 
             qk = predictive_smooth.get('predictive')['qk']
@@ -104,8 +105,8 @@ class TestMonitoring(unittest.TestCase):
             mod = dlm(a, R, ntrend=1, deltrend=delta)
 
             # Fit with monitoring
-            monitor = Monitoring(mod=mod, bilateral=True)
-            out = monitor.fit(y=df_simulated["y"])
+            monitor = Monitoring(mod=mod)
+            out = monitor.fit(y=df_simulated["y"], bilateral=True)
             predictive_smooth = out.get('smooth')
 
             qk = predictive_smooth.get('predictive')['qk']
@@ -115,3 +116,94 @@ class TestMonitoring(unittest.TestCase):
 
         self.assertTrue(all(variance_cond), True)
         self.assertTrue(all(qk), True)
+
+    def test__unilateral_level_in_regression(self):
+        """Test unilateral level model with automatic monitor in regression."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [], "mean_shift": [], "var_shift": []})
+
+        # Define model
+        a0 = np.array([100, 0, 1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, n0=1, s0=.1, delVar=0.98, ntrend=2, nregn=1,
+                  delregn=.98, deltrend=0.95)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated["y"], X=df_simulated[["x1"]],
+                          bilateral=False, prior_length=20,
+                          h=4, tau=0.135, change_var=[100, 1, 1])
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+
+    def test__bilateral_level_in_regression(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        # Generating level data model
+        np.random.seed(66)
+        X = np.random.normal(0, .1, 100).reshape(-1, 1)
+        rdlm = RandomDLM(n=100, V=.1, W=[0.006, .001])
+        df_simulated = rdlm.level_with_covariates(
+            start_level=100, start_covariates=[-2], X=X,
+            dict_shift={"t": [], "mean_shift": [], "var_shift": []})
+
+        # Define model
+        a0 = np.array([100, 0, -1])
+        R0 = np.eye(3)
+        R0[0, 0] = 100
+        R0[2, 2] = 10
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=1, delregn=.98, deltrend=0.9)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=df_simulated.y, X=df_simulated[["x1"]],
+                          bilateral=True, prior_length=1, h=4, tau=0.135,
+                          change_var=[10, 1, 1])
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+
+    def test__bilateral_level_in_regression_market_share(self):
+        """Test bilateral level model with automatic monitor in regression."""
+        market_share = load_market_share()
+        y = market_share['share']
+        X = market_share[['price', 'prom', 'cprom']]
+        X = X - X.mean()
+
+        # Define model
+        a0 = np.array([42, 0, 0, 0])
+        R0 = np.eye(4) * 4.0
+        R0[0, 0] = 25
+
+        mod = dlm(a0=a0, R0=R0, ntrend=1, nregn=3, delregn=.90,
+                  deltrend=1, delVar=.99)
+
+        # Fit with monitoring
+        monitor = Monitoring(mod=mod)
+        out = monitor.fit(y=y, X=X,
+                          bilateral=True, prior_length=1, h=4, tau=0.135,
+                          change_var=[10, 1, 1, 1])
+
+        # Measures
+        predictive_df = out.get('filter').get('predictive')
+        mse = ((predictive_df.y - predictive_df.f)**2).mean()
+        mad = np.abs(predictive_df.y - predictive_df.f).mean()
+
+        mse_comparative = np.abs(mse / .056 - 1)
+        mad_comparative = np.abs(mad / .185 - 1)
+
+        # Coefs
+        mod_ = out.get('model')
+        coefs_df = mod_.get_coef()
+        signal_lst = list((coefs_df.Mean < 0).values)
+
+        self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
+        self.assertEqual(signal_lst, [False, True, False, True])
+        self.assertTrue(mse_comparative < .10)
+        self.assertTrue(mad_comparative < .10)
