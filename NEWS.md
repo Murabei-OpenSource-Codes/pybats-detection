@@ -4,7 +4,7 @@
   - Included `bilateral` and `prior_length` parameters for the `fit` method in `Monitoring` class
   - Added new unit tests coveraging different scenarios
   - Fixed the index of method `level_with_covariates` in `RandomDLM` class
-  - Renamed the arguments `type` and `distr` to `distr_type` and `distr_fam`, respectively 
+  - Renamed the arguments `type` and `distr` to `distr_type` and `distr_fam`, respectively in method `fit` of `Monitor` class
 
 # `pybats-detection` 0.0.4
 
