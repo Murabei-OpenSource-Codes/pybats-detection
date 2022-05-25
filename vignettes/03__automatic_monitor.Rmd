@@ -111,12 +111,20 @@ By default we'll use `tau=0.135` and `h=4`. For more details see West and Harris
 A summary for the fit will be automatically printed, information regarding what was detected (outlier or parametric change), values for $H_t$, $L_t$ and $l_t$. The
 result will be a dictionary with same structure presented in the smoothing section
 
-```{python fit-level-change-data-monitoring-fit}
+```{python fit-level-change-data-monitoring-fit, results='hide'}
 fit_monitor = monitor.fit(y=calls["average_daily_calls"], 
 h=4, tau=0.135, change_var=[10, 2])
 forecast_df = fit_monitor.get("filter").get("predictive")
 ```
 
+
+\tiny
+```{python fit-level-change-data-monitoring-fit-output, echo=FALSE}
+fit_monitor = monitor.fit(y=calls["average_daily_calls"], 
+h=4, tau=0.135, change_var=[10, 2])
+forecast_df = fit_monitor.get("filter").get("predictive")
+```
+\normalsize
 
 ```{r plot-fit-cp6-filter-monitor, echo=FALSE, fig.cap="Mean response for Filtered predictive distribution with $95\\%$ credible interval with and without monitor", fig.dim=c(16,9), warnings = FALSE, out.width = "90%"}
 df_calls = py$calls %>% mutate(time = as.Date(time))
@@ -157,3 +165,410 @@ grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1,
                    label_size = 30)
 grid_p
 ```
+
+## Simulated examples
+
+### Level Change
+
+```{python simulating-level-change-data, engine = "python", results='hide'}
+np.random.seed(66)
+rdlm = RandomDLM(n=50, V=0.1, W=0.005)
+df_simulated = rdlm.level(
+    start_level=100,
+    dict_shift={"t": [40],
+                "level_mean_shift": [1],
+                "level_var_shift": [1]})
+df_simulated.loc[40:50, "y"] = 101 + np.random.normal(0, 0.2, 10)
+```
+
+```{r plot-level-change-data, echo=FALSE, fig.cap="Simulated data with level change", fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+ggplot(py$df_simulated, aes(x = t, y = y)) +
+  geom_point(size=3) + geom_line(linetype = "dashed") +
+  scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=25), 
+  axis.title=element_text(size=25)) +
+  colorspace::scale_color_discrete_divergingx()
+
+```
+
+
+```{python fit-level-change-data, message=FALSE, echo=FALSE, results='hide'}
+a = np.array([100])
+R = np.eye(1)
+R[[0]] = 100
+mod = dlm(a, R, ntrend=1, deltrend=0.9)
+
+# Fit without monitoring
+fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
+df_res = fit_without_monitor.get("filter").get("predictive")
+
+# Fit with monitoring
+monitor = Monitoring(mod=mod, bilateral=False)
+fit_monitor = monitor.fit(y=df_simulated["y"], h=3, tau=0.135, 
+change_var=[100])
+df_tmp = fit_monitor.get("filter").get("predictive")
+```
+
+```{python fit-level-change-data-organize, echo=FALSE}
+df_res["monitor"] = False
+df_tmp["monitor"] = True
+cols_ord = ["t", "y", "f", "q", "ci_lower", "ci_upper", "monitor", "e",
+            "H", "L", "l"]
+df_res = pd.concat([df_res, df_tmp[cols_ord]]).reset_index(drop=True)
+```
+
+```{r plot-fit-level-change-data, echo=FALSE, fig.cap="Fit for simulated data with level change", fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+p1 = py$df_res |> filter(t > 5, monitor == TRUE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+
+p2 = py$df_res |> filter(t > 5, monitor == FALSE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
+```
+
+
+### Outliers
+
+```{python simulating-outliers-data}
+np.random.seed(66)
+rdlm = RandomDLM(n=50, V=0.1, W=0.01)
+df_simulated = rdlm.level(
+    start_level=100,
+    dict_shift={"t": [10, 11, 20, 21, 30, 31, 40, 41],
+                "level_mean_shift": [2, -2, 3, -3, 3.4, -3.4, 3, -3],
+                "level_var_shift": [1, 1, 1, 1, 1, 1, 1, 1]})
+```
+
+```{r plot-outliers-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+ggplot(py$df_simulated, aes(x = t, y = y)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=25), 
+  axis.title=element_text(size=25)) +
+  colorspace::scale_color_discrete_divergingx()
+```
+
+```{python fit-outliers-data, echo=FALSE, message=FALSE, results='hide'}
+a = np.array([100])
+R = np.eye(1)
+R[[0]] = 100
+mod = dlm(a, R, ntrend=1, deltrend=0.9)
+
+# Fit without monitoring
+fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
+df_res = fit_without_monitor.get("filter").get("predictive")
+
+# Fit with monitoring
+monitor = Monitoring(mod=mod, bilateral=False)
+fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, 
+change_var=[100])
+df_tmp = fit_monitor.get("filter").get("predictive")
+```
+
+```{python fit-outliers-data-organize, echo=FALSE}
+df_res["monitor"] = False
+df_tmp["monitor"] = True
+
+# Append
+cols_ord = ["t", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
+df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
+```
+
+```{r plot-fit-outliers-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+p1 = py$df_res |> filter(t > 5, monitor == TRUE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+
+p2 = py$df_res |> filter(t > 5, monitor == FALSE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
+```
+
+
+### Outlier and Level Change 
+
+```{python simulating-outlier-level-change-data}
+np.random.seed(66)
+rdlm = RandomDLM(n=50, V=0.1, W=0.01)
+df_simulated = rdlm.level(
+    start_level=100,
+    dict_shift={"t": [20, 21, 40],
+                "level_mean_shift": [3, -3, 10],
+                "level_var_shift": [1, 1, 1]})
+```
+
+```{r plot-outlier-level-change-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+ggplot(py$df_simulated, aes(x = t, y = y)) +
+  geom_point() + geom_line(linetype = "dashed") +
+  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=25), 
+  axis.title=element_text(size=25)) +
+  colorspace::scale_color_discrete_divergingx()
+```
+
+
+```{python fit-outlier-level-change-data, echo=FALSE, message=FALSE, results='hide'}
+a = np.array([100])
+R = np.eye(1)
+R[[0]] = 100
+mod = dlm(a, R, ntrend=1, deltrend=0.9)
+
+# Fit without monitoring
+fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
+df_res = fit_without_monitor.get("filter").get("predictive")
+
+# Fit with monitoring
+monitor = Monitoring(mod=mod, bilateral=False)
+fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[10])
+df_tmp = fit_monitor.get("filter").get("predictive")
+```
+
+```{python fit-outlier-level-change-data-organize, echo=FALSE}
+df_res["monitor"] = False
+df_tmp["monitor"] = True
+
+# Append
+cols_ord = ["t", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
+df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
+```
+
+
+```{r plot-fit-outlier-level-change-data, echo=FALSE, message=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+p1 = py$df_res |> filter(t > 5, monitor == TRUE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+
+p2 = py$df_res |> filter(t > 5, monitor == FALSE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
+```
+
+
+### Outlier and Two Level Change
+
+```{python simulating-outlier-two-level-change-data}
+np.random.seed(66)
+rdlm = RandomDLM(n=70, V=1, W=0.01)
+df_simulated = rdlm.level(
+    start_level=100,
+    dict_shift={"t": [20, 21, 40, 60],
+                "level_mean_shift": [5, -5, 10, 10],
+                "level_var_shift": [1, 1, 1, 1]})
+```
+
+```{r plot-outlier-two-level-change-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+ggplot(py$df_simulated, aes(x = t, y = y)) +
+  geom_point() + geom_line(linetype = "dashed") +
+  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=25), 
+  axis.title=element_text(size=25)) +
+  colorspace::scale_color_discrete_divergingx()
+```
+
+
+```{python fit-outlier-two-level-change-data, echo=FALSE, message=FALSE, results='hide'}
+a = np.array([100])
+R = np.eye(1)
+R[[0]] = 100
+mod = dlm(a, R, ntrend=1, deltrend=0.9)
+
+# Fit without monitoring
+fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
+df_res = fit_without_monitor.get("filter").get("predictive")
+
+# Fit with monitoring
+monitor = Monitoring(mod=mod, bilateral=False)
+fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[10])
+df_tmp = fit_monitor.get("filter").get("predictive")
+
+```
+
+```{python fit-outlier-two-level-change-data-organize, echo=FALSE}
+df_res["monitor"] = False
+df_tmp["monitor"] = True
+
+# Append
+cols_ord = ["t", "monitor", "y", "f", "q", "ci_lower", "ci_upper"]
+df_res = pd.concat([df_res, df_tmp[cols_ord]]).reset_index(drop=True)
+```
+
+```{r plot-fit-outlier-two-level-change-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+p1 = py$df_res |> filter(t > 5, monitor == TRUE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+
+p2 = py$df_res |> filter(t > 5, monitor == FALSE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
+
+```
+
+### Bilateral Level Change
+
+```{python simulating-bilateral-level-change-data}
+np.random.seed(66)
+y1 = np.random.normal(loc=100, scale=0.8, size=40)
+y2 = np.random.normal(loc=104, scale=0.5, size=20)
+y3 = np.random.normal(loc=98, scale=0.5, size=20)
+y = np.concatenate([y1, y2, y3])
+t = np.arange(0, len(y)) + 1
+df_simulated = pd.DataFrame({"t": t, "y": y})
+```
+
+```{r plot-bilateral-level-change-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+ggplot(py$df_simulated, aes(x = t, y = y)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  scale_x_continuous(breaks = scales::pretty_breaks(20)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+  theme(axis.text=element_text(size=25), 
+  axis.title=element_text(size=25)) +
+  colorspace::scale_color_discrete_divergingx()
+```
+
+```{python fit-bilateral-level-change-data, echo=FALSE, message=FALSE, results='hide'}
+a = np.array([100])
+R = np.eye(1)
+R[[0]] = 100
+mod = dlm(a, R, ntrend=1, deltrend=0.80)
+
+# Fit without monitoring
+fit_without_monitor = Smoothing(mod=mod).fit(y=df_simulated["y"])
+df_res = fit_without_monitor.get("filter").get("predictive")
+
+# Fit with monitoring
+monitor = Monitoring(mod=mod, bilateral=True)
+fit_monitor = monitor.fit(y=df_simulated["y"], h=4, tau=0.135, change_var=[100])
+df_tmp = fit_monitor.get("filter").get("predictive")
+```
+
+```{python fit-bilateral-level-change-data-organize, echo=FALSE}
+df_res["monitor"] = False
+df_tmp["monitor"] = True
+
+# Append
+cols_ord = ["t", "y", "f", "q", "ci_lower", "ci_upper", "monitor"]
+df_res = pd.concat([df_res[cols_ord], df_tmp[cols_ord]]).reset_index(drop=True)
+```
+
+```{r plot-bilateral-fit-level-change-data, echo=FALSE, fig.dim=c(16,9), warnings = FALSE, out.width = "100%"}
+p1 = py$df_res |> filter(t > 5, monitor == TRUE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+
+p2 = py$df_res |> filter(t > 5, monitor == FALSE) |>
+  ggplot(aes(x = t)) +
+    geom_point(aes(y = y), size = 2) + geom_line(aes(y = f)) +
+    geom_ribbon(aes(ymin=ci_lower, ymax=ci_upper), 
+                alpha=.25, colour = 'grey40') +
+    geom_vline(xintercept = 41, linetype='dashed') + 
+    scale_x_continuous(breaks = scales::pretty_breaks(10)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(10)) +
+    theme(axis.text=element_text(size=20), 
+    axis.title=element_text(size=20)) +
+    colorspace::scale_color_discrete_divergingx()
+
+grid_p = plot_grid(p1, p2, labels=c('With Monitor', 'Without Monitor'), ncol=1, 
+                   label_size = 30)
+grid_p
+```
+

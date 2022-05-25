@@ -349,3 +349,4 @@ p4 = posteriori_smooth_df %>% filter(parameter == 'Sum Seas 1') %>%
 plot_grid(p1, p3, p4)
 ```
 
+
