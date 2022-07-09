@@ -3,7 +3,6 @@ import copy
 import pybats
 import numpy as np
 import pandas as pd
-from typing import List
 from scipy import stats
 from pybats_detection.smooth import Smoothing
 from pybats_detection.utils import tidy_parameters
@@ -54,7 +53,9 @@ class Monitoring:
 
     def fit(self, y: pd.Series, X: pd.DataFrame = None, prior_length: int = 10,
             bilateral: bool = False, h: int = 4, tau: float = 0.135,
-            change_var: List = [5], distr_fam: str = "normal",
+            discount_factors: dict = {
+                "trend": 0.10, "seasonal": 0.90, "reg": 0.98},
+            distr_fam: str = "normal",
             distr_type: str = "location", verbose: bool = True):
         """Perform the fit with automatic monitoring.
 
@@ -77,16 +78,16 @@ class Monitoring:
             distrbution.
         tau : double
             Threshold to compare the Bayes factor.
-        change_var : List
-            Values to increase the uncertainty on state space parameter by
-            multiplying prior covariance matrix, R, when the monitor detects
-            potential outlier or parametric change.
+        discount_factors : dict
+            Discount factors values to increase the uncertainty about
+            state space parameter, when the monitor detects potential outlier
+            or parametric change.
 
-            If length of `change_var` is different to number of parameters use,
-            then multiply the covariance matrix by the first value in the List.
-
-            The covariance terms are multiplied by the minimum value in
-            `change_var`.
+            The dictionary should contain values with the following keys
+            representing the model blocks:
+                - `trend`: level and growth
+                - `seasonal`: seasonality
+                - `reg`: regressors
         distr_fam : str
             Bayes factor distribution family. It could be "normal" or
             "tstudent".
@@ -134,34 +135,23 @@ class Monitoring:
         self._pd_X = X.copy()
         self._verbose = verbose
         self._prior_length = prior_length
-
-        # Constructing a matrix for multiply the prior covariance matrix R
-        n_parms = len(self._mod.get_coef())
-
-        if len(change_var) != n_parms:
-            c_mat = np.full(shape=(n_parms, n_parms), fill_value=change_var[0])
-
-        if len(change_var) == n_parms:
-            c_mat = np.eye(n_parms)
-            np.fill_diagonal(c_mat, val=np.array(change_var))
-            # Change the covariance terms fir tge minimum factor in change_var
-            c_mat[c_mat == 0] = np.min(np.array(change_var))
+        self._discount_intervention = discount_factors
 
         if type == "scale":
-            return self._fit_unilateral(h=h, tau=tau, c_mat=c_mat,
+            return self._fit_unilateral(h=h, tau=tau,
                                         distr_fam=distr_fam,
                                         distr_type=distr_type)
 
         if bilateral:
-            return self._fit_bilateral(h=h, tau=tau, c_mat=c_mat,
+            return self._fit_bilateral(h=h, tau=tau,
                                        distr_fam=distr_fam,
                                        distr_type=distr_type)
         else:
-            return self._fit_unilateral(h=h, tau=tau, c_mat=c_mat,
+            return self._fit_unilateral(h=h, tau=tau,
                                         distr_fam=distr_fam,
                                         distr_type=distr_type)
 
-    def _fit_unilateral(self, h, tau, c_mat, distr_fam, distr_type):
+    def _fit_unilateral(self, h, tau, distr_fam, distr_type):
         mod = copy.deepcopy(self._mod)
         pd_y = self._pd_y.copy()
         pd_X = self._pd_X.copy()
@@ -263,13 +253,15 @@ class Monitoring:
                 # Change prior variance and get back in time (t - lt + 1)
                 index = t - lt + 1
                 mod = copy.deepcopy(lt_model_history[index])
-                mod.R = c_mat * mod.R
+                self._increase_uncertainty(
+                    model=mod, discount_factors=self._discount_intervention)
                 for i in range(index, t):
                     ft, qt = mod.forecast_marginal(k=1, X=pd_X.values[i, :],
                                                    state_mean_var=True)
                     dict_predictive["f"][i] = ft[0][0]
                     dict_predictive["q"][i] = qt[0][0]
                     mod.update(y=pd_y.values[i], X=pd_X.values[i, :])
+
                 Lt = 1
                 lt = 0
                 # Compute new adjust forecast mean and variance
@@ -297,8 +289,10 @@ class Monitoring:
             # Update model
             mod.update(y=yt, X=Xt)
 
+            # Increase uncertainty
             if potential_outlier:
-                mod.R = c_mat * mod.R
+                self._increase_uncertainty(
+                    model=mod, discount_factors=self._discount_intervention)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -341,6 +335,7 @@ class Monitoring:
         df_posterior = df_posterior.sort_values(
             ["parameter", "t"]).reset_index(drop=True)
 
+        # Compute credible intervals
         if self._interval:
             df_predictive["ci_lower"] = stats.t.ppf(
                 q=self._level/2, df=df_predictive["df"].values,
@@ -361,7 +356,10 @@ class Monitoring:
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
+        # Output
         out = {"predictive": df_predictive, "posterior": df_posterior}
+
+        # Compute smooth distribution
         if self._smooth:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
@@ -369,11 +367,14 @@ class Monitoring:
                 y=pd_y, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
+        mod.deltrend = self._mod.deltrend
+        mod.delregn = self._mod.delregn
+        mod.delseas = self._mod.delseas
         out["model"] = mod
 
         return out
 
-    def _fit_bilateral(self, h, tau, c_mat, distr_fam, distr_type):
+    def _fit_bilateral(self, h, tau, distr_fam, distr_type):
         mod = copy.deepcopy(self._mod)
         pd_y = self._pd_y.copy()
         pd_X = self._pd_X.copy()
@@ -490,7 +491,8 @@ class Monitoring:
                 # Change prior variance and get back in time (t - lt + 1)
                 index = t - max_lt + 1
                 mod = copy.deepcopy(lt_model_history[index])
-                mod.R = c_mat * mod.R
+                self._increase_uncertainty(
+                    model=mod, discount_factors=self._discount_intervention)
                 for i in range(index, t):
                     ft, qt = mod.forecast_marginal(k=1, X=pd_X.values[i, :],
                                                    state_mean_var=True)
@@ -527,7 +529,8 @@ class Monitoring:
             mod.update(y=yt, X=Xt)
 
             if potential_outlier:
-                mod.R = c_mat * mod.R
+                self._increase_uncertainty(
+                    model=mod, discount_factors=self._discount_intervention)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -573,6 +576,7 @@ class Monitoring:
         df_posterior = df_posterior.sort_values(
             ["parameter", "t"]).reset_index(drop=True)
 
+        # Compute credible intervals
         if self._interval:
             df_predictive["ci_lower"] = stats.t.ppf(
                 q=self._level/2,
@@ -596,7 +600,10 @@ class Monitoring:
                 loc=df_posterior["mean"].values,
                 scale=np.sqrt(df_posterior["variance"].values))
 
+        # Output
         out = {"predictive": df_predictive, "posterior": df_posterior}
+
+        # Compute smooth distribution
         if self._smooth:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
@@ -604,9 +611,37 @@ class Monitoring:
                 y=pd_y, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
+        mod.deltrend = self._mod.deltrend
+        mod.delregn = self._mod.delregn
+        mod.delseas = self._mod.delseas
         out["model"] = mod
 
         return out
+
+    def _increase_uncertainty(self, model: pybats.dglm.dlm,
+                              discount_factors: dict) -> None:
+        """Increase the uncertainty of R matrix using discount factor.
+
+        Parameters
+        ----------
+        model : pybats.dglm.dlm
+            An object of class `pybats.dglm.dlm` with the defined DLM.
+        discount_factors : dict
+            Dictionary with discount factors values for `trend`, `seasonal`,
+            and `reg` block.
+
+        Returns
+        -------
+        None
+            This function just change the model.R and model.W matrices.
+        """
+        model.deltrend = discount_factors["trend"]
+        model.delseas = discount_factors["seasonal"]
+        model.delregn = discount_factors["reg"]
+        mat_discount = model.build_discount_matrix()
+        # Discount information for prior variance at time  t + 1
+        model.W = model.R / mat_discount - model.R
+        model.R = model.R + model.W
 
     def _bayes_factor(self, distr_fam, distr_type):
         switcher = {
