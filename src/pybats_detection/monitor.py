@@ -135,6 +135,17 @@ class Monitoring:
         self._pd_X = X.copy()
         self._verbose = verbose
         self._prior_length = prior_length
+
+        # Check discount factor parameters
+        discount_factors["level"] = (
+            1 if discount_factors.get("level") is None
+            else discount_factors["level"])
+        discount_factors["seasonal"] = (
+            1 if discount_factors.get("seasonal") is None
+            else discount_factors["seasonal"])
+        discount_factors["reg"] = (
+            1 if discount_factors.get("reg") is None
+            else discount_factors["reg"])
         self._discount_intervention = discount_factors
 
         if type == "scale":
