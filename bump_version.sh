@@ -1,7 +1,8 @@
+cd src
 nosetests -v ../tests/test__smooth.py
 nosetests -v ../tests/test__intervention.py
 nosetests -v ../tests/test__monitor.py
-
+cd ..
 
 source VERSION
 sed -e 's#{VERSION}#'"${VERSION}"'#g' setup_template.cfg > setup.cfg
