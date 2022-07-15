@@ -75,7 +75,7 @@ class Monitoring:
             Should bilateral monitoring be performed?
         h : double
             Value of change in the scale or location of the predictive
-            distrbution.
+            distribution.
         tau : double
             Threshold to compare the Bayes factor.
         discount_factors : dict
@@ -138,13 +138,13 @@ class Monitoring:
 
         # Check discount factor parameters
         discount_factors["level"] = (
-            1 if discount_factors.get("level") is None
+            self._mod.deltrend if discount_factors.get("level") is None
             else discount_factors["level"])
         discount_factors["seasonal"] = (
-            1 if discount_factors.get("seasonal") is None
+            self._mod.delseas if discount_factors.get("seasonal") is None
             else discount_factors["seasonal"])
         discount_factors["reg"] = (
-            1 if discount_factors.get("reg") is None
+            self._mod.delregn if discount_factors.get("reg") is None
             else discount_factors["reg"])
         self._discount_intervention = discount_factors
 
