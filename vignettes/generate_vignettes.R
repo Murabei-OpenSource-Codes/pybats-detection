@@ -13,6 +13,5 @@ rmarkdown::render(input = file.path("vignettes", "quick_start.Rmd"),
                   # output_format = rmarkdown::html_document(toc_float = TRUE, toc = TRUE),
                   output_format = rmarkdown::pdf_document(
                      toc = TRUE, toc_depth = 4, number_sections = TRUE,
-                     dev = "pdf", fig_width = 16, fig_height = 6)
-                  # , clean = TRUE
-                  )
+                     dev = "pdf", fig_width = 16, fig_height = 6),
+                  clean = TRUE)

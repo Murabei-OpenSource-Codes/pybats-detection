@@ -140,7 +140,7 @@ class TestMonitoring(unittest.TestCase):
         monitor = Monitoring(mod=mod)
         out = monitor.fit(y=df_simulated["y"], X=df_simulated[["x1"]],
                           bilateral=False, prior_length=20,
-                          h=4, tau=0.135, change_var=[100, 1, 1])
+                          h=4, tau=0.135)
 
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
@@ -165,8 +165,7 @@ class TestMonitoring(unittest.TestCase):
         # Fit with monitoring
         monitor = Monitoring(mod=mod)
         out = monitor.fit(y=df_simulated.y, X=df_simulated[["x1"]],
-                          bilateral=True, prior_length=1, h=4, tau=0.135,
-                          change_var=[10, 1, 1])
+                          bilateral=True, prior_length=1, h=4, tau=0.135)
         self.assertEqual(list(out.keys()), ["filter", "smooth", "model"])
 
     def test__bilateral_level_in_regression_market_share(self):
@@ -187,8 +186,7 @@ class TestMonitoring(unittest.TestCase):
         # Fit with monitoring
         monitor = Monitoring(mod=mod)
         out = monitor.fit(y=y, X=X,
-                          bilateral=True, prior_length=1, h=4, tau=0.135,
-                          change_var=[10, 1, 1, 1])
+                          bilateral=True, prior_length=1, h=4, tau=0.135)
 
         # Measures
         predictive_df = out.get('filter').get('predictive')

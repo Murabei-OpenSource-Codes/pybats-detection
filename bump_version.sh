@@ -2,7 +2,6 @@ cd src
 nosetests -v ../tests/test__smooth.py
 nosetests -v ../tests/test__intervention.py
 nosetests -v ../tests/test__monitor.py
-
 cd ..
 
 source VERSION
