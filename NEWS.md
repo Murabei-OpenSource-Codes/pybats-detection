@@ -1,7 +1,8 @@
 # `pybats_detection` 0.2.0
 
-  - Changed the parameter `change_var` to a dictionary `discount_factors` in order to increase the uncertainty about parameters when change is detected.
-  -
+  - Changed the parameter `change_var` to a dictionary `discount_factors` that received exceptional discount factor values according to the model block
+  - Improved class documentation
+  - Improved pybats_detection vignette
 
 # `pybats-detection` 0.1.4
 

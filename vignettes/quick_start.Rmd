@@ -1,14 +1,15 @@
 ---
 title: "`pybats-detection`: Quick start guide"
 author: "André Menezes and Eduardo Gabriel"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
+date: "Last compiled on `r Sys.setlocale(category = 'LC_TIME', locale='en_GB.UTF-8'); format(Sys.time(), '%B %d, %Y')`"
 ---
 
 ```{r setup, include=FALSE}
+Sys.setlocale(category = "LC_TIME", locale="en_GB.UTF-8")
 options(digits = 4, prompt = ">>> ", continue = ">>> ", width = 70,
         useFancyQuotes = FALSE)
 library(reticulate)
-use_virtualenv(virtualenv = "pybats_detection",required = TRUE)
+use_virtualenv(virtualenv = "pybats_detection", required = TRUE)
 knitr::opts_chunk$set(
    echo = TRUE, message = FALSE, warning = FALSE, fig.pos = "H",
    fig.align = "center", prompt = TRUE, tidy = TRUE)
@@ -177,9 +178,9 @@ monitor = Monitoring(mod=mod)
 
 ```{python fit-monitor}
 results = monitor.fit(y=telephone_calls["average_daily_calls"],
-                      bilateral=True, prior_length=40, h=4,
-                      tau=0.135, change_var=[6, 2], distr_type="location",
-                      distr_fam="normal", verbose=True)
+                      h=4, tau=0.135,
+                      discount_factors={"trend": [0.20, 0.90]},
+                      bilateral=True, prior_length=40)
 ```
 
 ## Step 7: Examine the results
