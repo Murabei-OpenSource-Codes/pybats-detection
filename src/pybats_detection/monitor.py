@@ -170,8 +170,8 @@ class Monitoring:
 
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
-            "prior": {"a": [], "R": []},
-            "posterior": {"m": [], "C": [], "s": [], "df": []}
+            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
             "t": [], "prior": [], "y": [], "f": [], "q": [], "e": [], "df": [],
@@ -202,6 +202,12 @@ class Monitoring:
 
             # Update model
             mod.update(y=yt, X=Xt)
+
+            Ft = copy.deepcopy(mod.F)
+            Gt = copy.deepcopy(mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -300,6 +306,12 @@ class Monitoring:
             # Update model
             mod.update(y=yt, X=Xt)
 
+            Ft = copy.deepcopy(mod.F)
+            Gt = copy.deepcopy(mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
+
             # Increase uncertainty
             if potential_outlier:
                 self._increase_uncertainty(
@@ -393,8 +405,8 @@ class Monitoring:
 
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
-            "prior": {"a": [], "R": []},
-            "posterior": {"m": [], "C": [], "s": [], "df": []}
+            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
             "t": [], "prior": [], "y": [], "f": [], "q": [], "e": [], "df": [],
@@ -427,6 +439,12 @@ class Monitoring:
 
             # Update model
             mod.update(y=yt, X=Xt)
+
+            Ft = copy.deepcopy(mod.F)
+            Gt = copy.deepcopy(mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -538,6 +556,12 @@ class Monitoring:
 
             # Update model
             mod.update(y=yt, X=Xt)
+
+            Ft = copy.deepcopy(mod.F)
+            Gt = copy.deepcopy(mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
 
             if potential_outlier:
                 self._increase_uncertainty(

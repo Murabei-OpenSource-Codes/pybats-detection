@@ -156,7 +156,7 @@ class Smoothing:
         dict_predictive = {
             "t": [], "y": [], "f": [], "q": [], "df": [], "s": []}
         dict_state_parms = {
-            "prior": {"a": [], "R": []},
+            "prior": {"a": [], "R": [], "F": [], "G": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
 
@@ -178,6 +178,12 @@ class Smoothing:
 
             # Update model
             c_mod.update(y=yt, X=Xt)
+
+            Ft = copy.deepcopy(c_mod.F)
+            Gt = copy.deepcopy(c_mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(c_mod.m)
@@ -263,8 +269,8 @@ class Smoothing:
         """
         # Initialize the model components and posterior/prior parameters
         T_end = len(self._pd_y)
-        F = self._mod.F
-        G = self._mod.G
+        F = dict_state_parms["prior"]["F"]
+        G = dict_state_parms["prior"]["G"]
         R = dict_state_parms["prior"]["R"]
         a = dict_state_parms["prior"]["a"]
         C = dict_state_parms["posterior"]["C"]
@@ -275,8 +281,8 @@ class Smoothing:
         # Dictionaty to save predictive and posterior parameters
         ak = m[T_end-1]
         Rk = C[T_end-1]
-        fk = F.T @ ak
-        qk = F.T @ Rk @ F
+        fk = F[T_end-1].T @ ak
+        qk = F[T_end-1].T @ Rk @ F[T_end-1]
         dict_smooth_parms = {
             "t": [T_end], "ak": [ak], "Rk": [Rk], "fk": [fk[0][0]],
             "qk": [qk[0][0]], "df": np.flip(df)}
@@ -284,16 +290,16 @@ class Smoothing:
         # Perform smoothing
         for k in range(1, T_end):
             # B_{t-k}
-            B_t_k = C[T_end-k-1] @ G.T @ np.linalg.pinv(R[T_end-k])
+            B_t_k = C[T_end-k-1] @ G[T_end-k].T @ np.linalg.pinv(R[T_end-k])
 
             # a_t(-k) and R_t(-k)
             ak = m[T_end-k-1] + B_t_k @ (ak - a[T_end-k])
             Rk = C[T_end-k-1] + B_t_k @ (Rk - R[T_end-k]) @ B_t_k.T
 
             # f_t(-k) and q_t(-k)
-            fk = F.T @ ak
+            fk = F[T_end-k].T @ ak
             # qk = (s[T_end - k] / s[T_end - k - 1]) * F.T @ Rk @ F
-            qk = F.T @ Rk @ F
+            qk = F[T_end-k].T @ Rk @ F[T_end-k]
 
             # Saving parameters
             dict_smooth_parms["ak"].append(ak)

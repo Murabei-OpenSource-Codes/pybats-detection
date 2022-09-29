@@ -144,7 +144,7 @@ class Intervention:
             "df": [], "s": []
         }
         dict_state_parms = {
-            "prior": {"a": [], "R": []},
+            "prior": {"a": [], "R": [], "F": [], "G": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         # Perform the fit with intervention
@@ -178,6 +178,12 @@ class Intervention:
 
             # Update model
             self._mod.update(y=self._y_cur, X=Xt)
+
+            Ft = copy.deepcopy(self._mod.F)
+            Gt = copy.deepcopy(self._mod.G)
+
+            dict_state_parms["prior"]["F"].append(Ft)
+            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving state parameters
             dict_state_parms["posterior"]["m"].append(self._mod.m)
