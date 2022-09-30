@@ -272,7 +272,7 @@ class Smoothing:
         # s = dict_state_parms["posterior"]["s"]
         df = dict_state_parms["posterior"]["df"]
 
-        # Regressiors vector and evolution matrix
+        # F and G
         mod = copy.deepcopy(self._mod)
         X = self._pd_X.copy()
 
