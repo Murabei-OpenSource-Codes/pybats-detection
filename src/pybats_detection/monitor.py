@@ -170,7 +170,7 @@ class Monitoring:
 
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
-            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "prior": {"a": [], "R": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
@@ -202,12 +202,6 @@ class Monitoring:
 
             # Update model
             mod.update(y=yt, X=Xt)
-
-            Ft = copy.deepcopy(mod.F)
-            Gt = copy.deepcopy(mod.G)
-
-            dict_state_parms["prior"]["F"].append(Ft)
-            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -306,12 +300,6 @@ class Monitoring:
             # Update model
             mod.update(y=yt, X=Xt)
 
-            Ft = copy.deepcopy(mod.F)
-            Gt = copy.deepcopy(mod.G)
-
-            dict_state_parms["prior"]["F"].append(Ft)
-            dict_state_parms["prior"]["G"].append(Gt)
-
             # Increase uncertainty
             if potential_outlier:
                 self._increase_uncertainty(
@@ -387,7 +375,7 @@ class Monitoring:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=pd_y, dict_state_parms=dict_state_parms)
+                y=pd_y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         mod.deltrend = self._mod.deltrend
@@ -405,7 +393,7 @@ class Monitoring:
 
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
-            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "prior": {"a": [], "R": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
@@ -439,12 +427,6 @@ class Monitoring:
 
             # Update model
             mod.update(y=yt, X=Xt)
-
-            Ft = copy.deepcopy(mod.F)
-            Gt = copy.deepcopy(mod.G)
-
-            dict_state_parms["prior"]["F"].append(Ft)
-            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving posterior state parameters
             dict_state_parms["posterior"]["m"].append(mod.m)
@@ -557,12 +539,6 @@ class Monitoring:
             # Update model
             mod.update(y=yt, X=Xt)
 
-            Ft = copy.deepcopy(mod.F)
-            Gt = copy.deepcopy(mod.G)
-
-            dict_state_parms["prior"]["F"].append(Ft)
-            dict_state_parms["prior"]["G"].append(Gt)
-
             if potential_outlier:
                 self._increase_uncertainty(
                     model=mod, discount_factors=self._discount_intervention)
@@ -643,7 +619,7 @@ class Monitoring:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=pd_y, dict_state_parms=dict_state_parms)
+                y=pd_y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         mod.deltrend = self._mod.deltrend

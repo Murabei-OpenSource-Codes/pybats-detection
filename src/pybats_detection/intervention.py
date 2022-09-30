@@ -144,7 +144,7 @@ class Intervention:
             "df": [], "s": []
         }
         dict_state_parms = {
-            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "prior": {"a": [], "R": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         # Perform the fit with intervention
@@ -178,12 +178,6 @@ class Intervention:
 
             # Update model
             self._mod.update(y=self._y_cur, X=Xt)
-
-            Ft = copy.deepcopy(self._mod.F)
-            Gt = copy.deepcopy(self._mod.G)
-
-            dict_state_parms["prior"]["F"].append(Ft)
-            dict_state_parms["prior"]["G"].append(Gt)
 
             # Saving state parameters
             dict_state_parms["posterior"]["m"].append(self._mod.m)
@@ -247,7 +241,7 @@ class Intervention:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=y, dict_state_parms=dict_state_parms)
+                y=y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         out["model"] = self._mod
