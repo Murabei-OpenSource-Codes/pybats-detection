@@ -157,7 +157,7 @@ class Smoothing:
         dict_predictive = {
             "t": [], "y": [], "f": [], "q": [], "df": [], "s": []}
         dict_state_parms = {
-            "prior": {"a": [], "R": [], "F": [], "G": []},
+            "prior": {"a": [], "R": []},
             "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
 
