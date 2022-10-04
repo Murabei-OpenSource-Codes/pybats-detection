@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from pybats_detection.utils import tidy_parameters
+from pybats.update import update_F
 
 
 class Smoothing:
@@ -263,8 +264,7 @@ class Smoothing:
         """
         # Initialize the model components and posterior/prior parameters
         T_end = len(self._pd_y)
-        F = self._mod.F
-        G = self._mod.G
+
         R = dict_state_parms["prior"]["R"]
         a = dict_state_parms["prior"]["a"]
         C = dict_state_parms["posterior"]["C"]
@@ -272,11 +272,21 @@ class Smoothing:
         # s = dict_state_parms["posterior"]["s"]
         df = dict_state_parms["posterior"]["df"]
 
+        # F and G
+        mod = copy.deepcopy(self._mod)
+        X = self._pd_X.copy()
+
+        G = copy.deepcopy(mod.G)
+        FT = copy.deepcopy(mod.F)
+
+        Ft = [copy.deepcopy(update_F(mod=mod, X=X.values[t, :], F=FT))
+              for t in range(T_end)]
+
         # Dictionaty to save predictive and posterior parameters
         ak = m[T_end-1]
         Rk = C[T_end-1]
-        fk = F.T @ ak
-        qk = F.T @ Rk @ F
+        fk = FT.T @ ak
+        qk = FT.T @ Rk @ FT
         dict_smooth_parms = {
             "t": [T_end], "ak": [ak], "Rk": [Rk], "fk": [fk[0][0]],
             "qk": [qk[0][0]], "df": np.flip(df)}
@@ -291,9 +301,9 @@ class Smoothing:
             Rk = C[T_end-k-1] + B_t_k @ (Rk - R[T_end-k]) @ B_t_k.T
 
             # f_t(-k) and q_t(-k)
-            fk = F.T @ ak
+            fk = Ft[T_end-k].T @ ak
             # qk = (s[T_end - k] / s[T_end - k - 1]) * F.T @ Rk @ F
-            qk = F.T @ Rk @ F
+            qk = Ft[T_end-k].T @ Rk @ Ft[T_end-k]
 
             # Saving parameters
             dict_smooth_parms["ak"].append(ak)
