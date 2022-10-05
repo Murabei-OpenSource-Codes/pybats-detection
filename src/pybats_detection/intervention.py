@@ -241,7 +241,7 @@ class Intervention:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=y, dict_state_parms=dict_state_parms)
+                y=y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         out["model"] = self._mod

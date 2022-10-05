@@ -1,4 +1,5 @@
 """Unit tests for Smooth class."""
+import pandas as pd
 import unittest
 import numpy as np
 from pybats.dglm import dlm
@@ -200,3 +201,37 @@ class TestSmoothing(unittest.TestCase):
         self.assertEqual(signal_lst, [False, True, False, True])
         self.assertTrue(mse_comparative < .10)
         self.assertTrue(mad_comparative < .10)
+
+    def test__two_regressors_fk_error(self):
+        """Test the smooth predictive error with two regressor."""
+        np.random.seed(66)
+        mean = (100, 0, 0)
+        cov = [[10, .90, .95], [0.90, 1, 0.55], [0.95, 0.55, 1]]
+
+        xy = np.random.multivariate_normal(mean, cov, size=100)
+        y = pd.Series(xy[:, 0])
+        X = pd.DataFrame(xy[:, [1, 2]])
+
+        # Define model
+        a0 = np.array([100, 0, -1, 1])
+        R0 = np.eye(4)
+        np.fill_diagonal(R0, val=100)
+
+        mod = dlm(a0=a0, R0=R0, ntrend=2, nregn=2, delregn=.98, deltrend=0.95)
+        smooth = Smoothing(mod=mod)
+        dict_results = smooth.fit(y=y, X=X)
+
+        filter_predictive = dict_results.get("filter").get("predictive")
+        smooth_predictive = dict_results.get("smooth").get("predictive")
+        smooth_predictive['y'] = filter_predictive['y']
+
+        # MSE
+        filter_pe = (filter_predictive['f']/filter_predictive['y'] - 1)
+        smooth_pe = (smooth_predictive['fk'] / smooth_predictive['y'] - 1)
+
+        filter_mape = filter_pe.abs().mean()
+        smooth_mape = smooth_pe.abs().mean()
+
+        self.assertTrue(filter_mape < 0.05)
+        self.assertTrue(smooth_mape < 0.05)
+        self.assertTrue(smooth_mape < filter_mape)

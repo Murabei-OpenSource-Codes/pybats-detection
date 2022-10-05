@@ -171,7 +171,7 @@ class Monitoring:
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
             "prior": {"a": [], "R": []},
-            "posterior": {"m": [], "C": [], "s": [], "df": []}
+            "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
             "t": [], "prior": [], "y": [], "f": [], "q": [], "e": [], "df": [],
@@ -375,7 +375,7 @@ class Monitoring:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=pd_y, dict_state_parms=dict_state_parms)
+                y=pd_y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         mod.deltrend = self._mod.deltrend
@@ -394,7 +394,7 @@ class Monitoring:
         # Dictionaries to keep state and predictive parameters
         dict_state_parms = {
             "prior": {"a": [], "R": []},
-            "posterior": {"m": [], "C": [], "s": [], "df": []}
+            "posterior": {"m": [], "C": [], "df": [], "s": []}
         }
         dict_predictive = {
             "t": [], "prior": [], "y": [], "f": [], "q": [], "e": [], "df": [],
@@ -619,7 +619,7 @@ class Monitoring:
             smooth_class = Smoothing(
                 mod=self._mod, interval=self._interval, level=self._level)
             dict_smooth = smooth_class.fit(
-                y=pd_y, dict_state_parms=dict_state_parms)
+                y=pd_y, X=pd_X, dict_state_parms=dict_state_parms)
             out = {"filter": out, "smooth": dict_smooth}
 
         mod.deltrend = self._mod.deltrend
