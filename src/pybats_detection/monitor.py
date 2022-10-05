@@ -244,14 +244,18 @@ class Monitoring:
 
             # Cumulative Bayes factor (Lt)
             Lt = 1
-            if t > 0:
-                Lt = Ht * np.min([1, dict_predictive["L"][t - 1]])
+            if np.isnan(Ht):
+                Lt = dict_predictive["L"][t - 1]
+                lt = dict_predictive["l"][t - 1]
+            else:
+                if t > 0:
+                    Lt = Ht * np.min([1, dict_predictive["L"][t - 1]])
 
-            # Run length (lt)
-            lt = 1
-            if t > 0:
-                lt = np.where(dict_predictive["L"][t - 1] < 1,
-                              dict_predictive["l"][t - 1] + 1, 1)
+                # Run length (lt)
+                lt = 1
+                if t > 0:
+                    lt = np.where(dict_predictive["L"][t - 1] < 1,
+                                  dict_predictive["l"][t - 1] + 1, 1)
 
             dict_predictive["what_detected"].append("nothing")
             # Check structural change in parameters
@@ -472,17 +476,26 @@ class Monitoring:
 
             # Cumulative Bayes factor (Lt)
             Lt = [1, 1]
-            if t > 0:
-                Lt[0] = Ht[0] * np.min([1, dict_predictive["L_upper"][t - 1]])
-                Lt[1] = Ht[1] * np.min([1, dict_predictive["L_lower"][t - 1]])
-
-            # Run length (lt)
             lt = [1, 1]
-            if t > 0:
-                lt[0] = np.where(dict_predictive["L_upper"][t - 1] < 1,
-                                 dict_predictive["l_upper"][t - 1] + 1, 1)
-                lt[1] = np.where(dict_predictive["L_lower"][t - 1] < 1,
-                                 dict_predictive["l_lower"][t - 1] + 1, 1)
+            if np.isnan(Ht[0]):
+                Lt[0] = dict_predictive["L_upper"][t - 1]
+                Lt[1] = dict_predictive["L_lower"][t - 1]
+
+                lt[0] = dict_predictive["l_upper"][t - 1]
+                lt[1] = dict_predictive["l_lower"][t - 1]
+            else:
+                if t > 0:
+                    Lt[0] = Ht[0] * np.min(
+                        [1, dict_predictive["L_upper"][t - 1]])
+                    Lt[1] = Ht[1] * np.min(
+                        [1, dict_predictive["L_lower"][t - 1]])
+
+                # Run length (lt)
+                if t > 0:
+                    lt[0] = np.where(dict_predictive["L_upper"][t - 1] < 1,
+                                     dict_predictive["l_upper"][t - 1] + 1, 1)
+                    lt[1] = np.where(dict_predictive["L_lower"][t - 1] < 1,
+                                     dict_predictive["l_lower"][t - 1] + 1, 1)
 
             min_Ht = min(Ht)
             min_Lt = min(Lt)
