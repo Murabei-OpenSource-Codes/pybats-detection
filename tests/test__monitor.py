@@ -2,6 +2,7 @@
 import unittest
 import pandas as pd
 import numpy as np
+import copy
 from pybats.dglm import dlm
 from pybats_detection.random_dlm import RandomDLM
 from pybats_detection.monitor import Monitoring
@@ -268,3 +269,91 @@ class TestMonitoring(unittest.TestCase):
         self.assertTrue(filter_mape < 0.10)
         self.assertTrue(smooth_mape < 0.05)
         self.assertTrue(smooth_mape < filter_mape)
+
+    def test__monitoring_with_missing_values_unilateral(self):
+        """Test the unilateral monitoring with missing values."""
+        np.random.seed(66)
+        rdlm = RandomDLM(n=70, V=1, W=0.1)
+        df_simulated = rdlm.level(start_level=100,
+                                  dict_shift={"t": [30, 50],
+                                              "level_mean_shift": [-20, 50],
+                                              "level_var_shift": [1, 1]})
+
+        # Add y with missing values
+        df_simulated['my'] = df_simulated['y']
+        df_simulated.loc[[10, 15, 28, 47], 'my'] = np.nan
+
+        # Define model (prior mean and variance matrix)
+        a = np.array(100)
+        R = np.eye(1)
+        np.fill_diagonal(R, val=1000)
+        mod = dlm(a, R, ntrend=1, deltrend=0.90)
+
+        # Fit with monitoring
+        monitor1 = Monitoring(mod=copy.deepcopy(mod))
+        monitor2 = Monitoring(mod=copy.deepcopy(mod))
+
+        out1 = monitor1.fit(y=df_simulated["y"], bilateral=False)
+        out2 = monitor2.fit(y=df_simulated["my"], bilateral=False)
+
+        monitor_results1 = out1.get('filter').get('predictive')
+        monitor_results2 = out2.get('filter').get('predictive')
+
+        # Interventions times
+        query = 'what_detected != "nothing"'
+        what_detected_times_1 = monitor_results1.query(query).t.values
+        what_detected_times_2 = monitor_results2.query(query).t.values
+
+        # Difference in predictive mean (f)
+        f1 = np.abs(monitor_results1.f.values)
+        f2 = np.abs(monitor_results2.f.values)
+        f_diff = np.abs(np.nanmean(f1/f2) - 1)
+
+        # Compare results
+        bool = np.array_equal(what_detected_times_1, what_detected_times_2)
+        self.assertTrue(bool)
+        self.assertTrue(f_diff < 0.01)
+
+    def test__monitoring_with_missing_values_bilateral(self):
+        """Test the unilateral monitoring with missing values."""
+        np.random.seed(66)
+        rdlm = RandomDLM(n=70, V=1, W=0.1)
+        df_simulated = rdlm.level(start_level=100,
+                                  dict_shift={"t": [30, 50],
+                                              "level_mean_shift": [-20, 50],
+                                              "level_var_shift": [1, 1]})
+
+        # Add y with missing values
+        df_simulated['my'] = df_simulated['y']
+        df_simulated.loc[[10, 15, 30, 50], 'my'] = np.nan
+
+        # Define model (prior mean and variance matrix)
+        a = np.array(100)
+        R = np.eye(1)
+        np.fill_diagonal(R, val=1000)
+        mod = dlm(a, R, ntrend=1, deltrend=0.90)
+
+        # Fit with monitoring
+        monitor1 = Monitoring(mod=copy.deepcopy(mod))
+        monitor2 = Monitoring(mod=copy.deepcopy(mod))
+
+        out1 = monitor1.fit(y=df_simulated["y"], bilateral=True)
+        out2 = monitor2.fit(y=df_simulated["my"], bilateral=True)
+
+        monitor_results1 = out1.get('filter').get('predictive')
+        monitor_results2 = out2.get('filter').get('predictive')
+
+        # Interventions times
+        query = 'what_detected != "nothing"'
+        what_detected_times_1 = monitor_results1.query(query).t.values
+        what_detected_times_2 = monitor_results2.query(query).t.values - 1
+
+        # Difference in predictive mean (f)
+        f1 = np.abs(monitor_results1.f.values)
+        f2 = np.abs(monitor_results2.f.values)
+        f_diff = np.abs(np.nanmean(f1/f2) - 1)
+
+        # Compare results
+        bool = np.array_equal(what_detected_times_1, what_detected_times_2)
+        self.assertTrue(bool)
+        self.assertTrue(f_diff < 0.01)
