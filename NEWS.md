@@ -1,3 +1,8 @@
+# `pybats_detection` 0.2.1
+
+  - Fix for the `Monitoring` class when `y` has missing value
+  - Fix for the `Smooth` class with dynamic linear regression model, only the last values of the covariates were used to compute the smooth predictive distributions producing incorrect results
+
 # `pybats_detection` 0.2.0
 
   - Changed the parameter `change_var` to a dictionary `discount_factors` that received exceptional discount factor values according to the model block
